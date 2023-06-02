@@ -1,0 +1,36 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f4f4;
+}
+
+h1 {
+    text-align: center;
+    padding: 20px;
+}
+
+#game-list {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-around;
+}
+
+.game-card {
+    border: 1px solid #ddd;
+    margin: 10px;
+    padding: 10px;
+    width: 300px;
+    text-align: center;
+}
+
+.game-card h2 {
+    font-size: 1.5em;
+}
+
+.game-card p {
+    font-size: 1em;
+}
+
+.game-card img {
+    width: 100%;
+    height: auto;
+}
