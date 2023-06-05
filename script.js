@@ -1,13 +1,19 @@
 // List of Pyxel games
 var games = [
     {
-        title: 'Hello Pyxel',
-        description: 'Simplest application',
-        image: 'path/to/hello_pyxel.png',
-        demoUrl: 'path/to/hello_pyxel/demo',
-        codeUrl: 'path/to/hello_pyxel/code',
+        title: 'Color Mycelium',
+        description: 'A color mycelium demo',
+        image: 'path/to/color_mycelium.png',
+        demoUrl: 'https://www.pyxelstudio.net/e8zt3afs',
+        codeUrl: 'https://github.com/alexkorol/pyxel-arcade/blob/master/demos/color_mycelium.py',
     },
-    // Add more game objects here...
+    {
+        title: 'Mycelium 1',
+        description: 'Another mycelium demo',
+        image: 'path/to/mycelium_1.png',
+        demoUrl: 'https://www.pyxelstudio.net/h7kq4gws',
+        codeUrl: 'https://github.com/alexkorol/pyxel-arcade/blob/master/demos/mycelium_1.py',
+    },
 ];
 
 // Get the game list container
