@@ -3,14 +3,14 @@ var games = [
     {
         title: 'Color Mycelium',
         description: 'A color mycelium demo',
-        image: 'path/to/color_mycelium.png',
+        image: '/demos/color_mycelium.PNG',
         demoUrl: 'https://www.pyxelstudio.net/e8zt3afs',
         codeUrl: 'https://github.com/alexkorol/pyxel-arcade/blob/master/demos/color_mycelium.py',
     },
     {
         title: 'Mycelium 1',
         description: 'Another mycelium demo',
-        image: 'path/to/mycelium_1.png',
+        image: '/demos/mycelium_1.PNG',
         demoUrl: 'https://www.pyxelstudio.net/h7kq4gws',
         codeUrl: 'https://github.com/alexkorol/pyxel-arcade/blob/master/demos/mycelium_1.py',
     },
