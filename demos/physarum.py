@@ -34,10 +34,36 @@ class Agent:
         self.a = random.uniform(0, math.tau)
 
 
+class Cursor:
+    """Software mouse cursor for a persistent canvas: it memorizes the
+    pixels it paints over and restores them next frame, so it never
+    leaves a trail (the built-in cursor gets stamped into the screen
+    buffer and would)."""
+
+    ARMS = ((-2, 0), (-1, 0), (1, 0), (2, 0), (0, -2), (0, -1), (0, 1), (0, 2))
+
+    def __init__(self):
+        self.under = []  # [(x, y, color), ...] saved last frame
+
+    def erase(self):
+        for x, y, c in self.under:
+            pyxel.pset(x, y, c)
+        self.under = []
+
+    def draw(self):
+        self.under = []
+        for dx, dy in self.ARMS:
+            x, y = pyxel.mouse_x + dx, pyxel.mouse_y + dy
+            if 0 <= x < pyxel.width and 0 <= y < pyxel.height:
+                self.under.append((x, y, pyxel.pget(x, y)))
+                pyxel.pset(x, y, 7)
+
+
 class App:
     def __init__(self):
         pyxel.init(W, H, title="physarum")
-        pyxel.mouse(True)
+        pyxel.mouse(False)  # see Cursor: the engine cursor would smear
+        self.cursor = Cursor()
         self.trail = bytearray(W * H)
         self.agents = [Agent() for _ in range(N_AGENTS)]
         self.sense_angle, self.sense_dist, self.turn = PRESETS[pyxel.KEY_1]
@@ -92,6 +118,7 @@ class App:
             t[i] = min(255, t[i] + 45)  # deposit chemical
 
     def draw(self):
+        self.cursor.erase()
         if self.wipe:
             pyxel.cls(0)
             self.wipe = False
@@ -103,6 +130,7 @@ class App:
             v = self.trail[int(ag.x) + int(ag.y) * W]
             col = 7 if v > 200 else 11 if v > 120 else 3 if v > 50 else 1
             pyxel.pset(ag.x, ag.y, col)
+        self.cursor.draw()
 
 
 if __name__ == "__main__":

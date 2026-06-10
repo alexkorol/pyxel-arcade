@@ -42,10 +42,36 @@ class Tip:
         self.life -= 1
 
 
+class Cursor:
+    """Software mouse cursor for a persistent canvas: it memorizes the
+    pixels it paints over and restores them next frame, so it never
+    leaves a trail (the built-in cursor gets stamped into the screen
+    buffer and would)."""
+
+    ARMS = ((-2, 0), (-1, 0), (1, 0), (2, 0), (0, -2), (0, -1), (0, 1), (0, 2))
+
+    def __init__(self):
+        self.under = []  # [(x, y, color), ...] saved last frame
+
+    def erase(self):
+        for x, y, c in self.under:
+            pyxel.pset(x, y, c)
+        self.under = []
+
+    def draw(self):
+        self.under = []
+        for dx, dy in self.ARMS:
+            x, y = pyxel.mouse_x + dx, pyxel.mouse_y + dy
+            if 0 <= x < pyxel.width and 0 <= y < pyxel.height:
+                self.under.append((x, y, pyxel.pget(x, y)))
+                pyxel.pset(x, y, 7)
+
+
 class App:
     def __init__(self):
         pyxel.init(128, 128, title="color mycelium")
-        pyxel.mouse(True)
+        pyxel.mouse(False)  # see Cursor: the engine cursor would smear
+        self.cursor = Cursor()
         self.palette = 0
         self.fade = False
         self.wipe = True  # ask draw() to clear the canvas once
@@ -83,6 +109,7 @@ class App:
             self.seed(64, 64)
 
     def draw(self):
+        self.cursor.erase()
         if self.wipe:
             pyxel.cls(0)
             self.wipe = False
@@ -96,6 +123,7 @@ class App:
             if abs(t.x - t.px) < 2 and abs(t.y - t.py) < 2:
                 pyxel.line(t.px, t.py, t.x, t.y, ramp[t.shade % len(ramp)])
             pyxel.pset(t.x, t.y, 7)  # glowing growth tip
+        self.cursor.draw()
 
 
 if __name__ == "__main__":

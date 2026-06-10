@@ -45,10 +45,36 @@ def px_to_hex(x, y):
     return rx, rz
 
 
+class Cursor:
+    """Software mouse cursor for a persistent canvas: it memorizes the
+    pixels it paints over and restores them next frame, so it never
+    leaves a trail (the built-in cursor gets stamped into the screen
+    buffer and would)."""
+
+    ARMS = ((-2, 0), (-1, 0), (1, 0), (2, 0), (0, -2), (0, -1), (0, 1), (0, 2))
+
+    def __init__(self):
+        self.under = []  # [(x, y, color), ...] saved last frame
+
+    def erase(self):
+        for x, y, c in self.under:
+            pyxel.pset(x, y, c)
+        self.under = []
+
+    def draw(self):
+        self.under = []
+        for dx, dy in self.ARMS:
+            x, y = pyxel.mouse_x + dx, pyxel.mouse_y + dy
+            if 0 <= x < pyxel.width and 0 <= y < pyxel.height:
+                self.under.append((x, y, pyxel.pget(x, y)))
+                pyxel.pset(x, y, 7)
+
+
 class App:
     def __init__(self):
         pyxel.init(W, H, title="hex bloom")
-        pyxel.mouse(True)
+        pyxel.mouse(False)  # see Cursor: the engine cursor would smear
+        self.cursor = Cursor()
         self.rule_i = 0
         self.clear()
 
@@ -94,6 +120,7 @@ class App:
             self.grow()
 
     def draw(self):
+        self.cursor.erase()
         if self.wipe:
             pyxel.cls(0)
             self.wipe = False
@@ -104,6 +131,7 @@ class App:
         self.queue = []
         pyxel.rect(0, 0, 60, 7, 0)
         pyxel.text(2, 1, f"rule: {RULES[self.rule_i][1]}", 5)
+        self.cursor.draw()
 
 
 if __name__ == "__main__":

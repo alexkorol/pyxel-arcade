@@ -28,7 +28,10 @@ PALETTE_KEYS = [  # (key, element, label)
 class App:
     def __init__(self):
         pyxel.init(W, SIM_H + BAR_H, title="powder box")
-        pyxel.mouse(True)
+        # keep the engine cursor hidden: it gets stamped into the screen
+        # buffer, and on a no-cls canvas every stamp would stay behind.
+        # the brush ring drawn in draw() is the cursor instead.
+        pyxel.mouse(False)
         self.element = SAND
         self.brush = 3
         self.repair = None  # (x, y, r) cursor-ring area to restore next frame

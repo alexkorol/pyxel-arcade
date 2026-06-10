@@ -81,12 +81,16 @@ class Stalk:
         pyxel.circ(ix, iy, 2, self.iris)
         pyxel.circ(ix, iy, 1 + (d < 25), 0)            # pupil dilates up close
 
-        # eyelid: blink animation, or held shut while feeling shy
+        # eyelid: blink animation (open -> shut -> open), or held shut
+        # while feeling shy
         lid = 1.0 if self.stare > 60 else \
-            (10 - abs(self.blink_t - 5)) / 5 if self.blink_t > 0 else 0.0
+            (5 - abs(self.blink_t - 5)) / 5 if self.blink_t > 0 else 0.0
         if lid > 0:
             h = int((2 * r + 1) * min(1.0, lid))
-            pyxel.rect(ex - r, ey - r, 2 * r + 1, h, 15)
+            for i in range(h):  # clip the lid to the round eye
+                y = ey - r + i
+                half = round(math.sqrt(max(0, r * r - (y - ey) ** 2)))
+                pyxel.line(ex - half, y, ex + half, y, 15)
         pyxel.circb(ex, ey, r, 2)                      # rim
 
 
