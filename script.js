@@ -1,21 +1,21 @@
 // List of Pyxel games
-// Demo links: the first two run on pyxelstudio.net; the rest run via the
-// Pyxel Web Launcher, which loads the .py straight from this GitHub repo
-// (user/repo/branch/path format resolves to the latest master commit).
+// Demo links run via the Pyxel Web Launcher, which loads each .py straight
+// from this GitHub repo (user/repo/branch/path resolves to the latest
+// master commit, so pushed updates are playable immediately).
 var LAUNCHER = 'https://kitao.github.io/pyxel/web/launcher/?run=alexkorol/pyxel-arcade/master/demos/';
 var games = [
     {
         title: 'Color Mycelium',
         description: 'Branching hyphae paint slow rainbow threads. Click to plant spores, C cycles palettes, F toggles fade.',
         image: 'demos/color_mycelium.png',
-        demoUrl: 'https://www.pyxelstudio.net/e8zt3afs',
+        demoUrl: LAUNCHER + 'color_mycelium',
         codeUrl: 'https://github.com/alexkorol/pyxel-arcade/blob/master/demos/color_mycelium.py',
     },
     {
         title: 'Mycelium Garden',
         description: 'Hyphae forage for nutrients, fatten up, and fruit into mushrooms that puff spores. Click to feed the network.',
         image: 'demos/mycelium_garden.png',
-        demoUrl: 'https://www.pyxelstudio.net/h7kq4gws',
+        demoUrl: LAUNCHER + 'mycelium_garden',
         codeUrl: 'https://github.com/alexkorol/pyxel-arcade/blob/master/demos/mycelium_garden.py',
     },
     {
