@@ -1,7 +1,8 @@
 // List of Pyxel games
 // Demo links: the first two run on pyxelstudio.net; the rest run via the
-// Pyxel Web Launcher, which loads the .py straight from this GitHub repo.
-var LAUNCHER = 'https://kitao.github.io/pyxel/wasm/launcher/?run=alexkorol.pyxel-arcade.demos.';
+// Pyxel Web Launcher, which loads the .py straight from this GitHub repo
+// (user/repo/branch/path format resolves to the latest master commit).
+var LAUNCHER = 'https://kitao.github.io/pyxel/web/launcher/?run=alexkorol/pyxel-arcade/master/demos/';
 var games = [
     {
         title: 'Color Mycelium',
