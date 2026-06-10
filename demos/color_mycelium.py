@@ -1,58 +1,102 @@
-import pyxel
+"""Color Mycelium -- branching hyphae paint slow rainbow threads.
+
+Controls:  click = plant a spore    SPACE = clear canvas
+           C = next palette         F = toggle slow fade
+
+Study: persistent-canvas rendering (we never call cls per frame),
+list-comprehension lifecycles, polar-coordinate motion.
+"""
 import math
 import random
 
-class GrowingPoint:
-    speed = 0.07
+import pyxel
 
-    def __init__(self, x, y, angle=0):
-        self.x = x
-        self.y = y
+PALETTES = [
+    [1, 5, 3, 11, 10, 7],   # aurora
+    [2, 8, 9, 10, 7],       # ember
+    [1, 2, 14, 15, 7],      # orchid
+    [5, 12, 6, 7],          # frost
+]
+MAX_TIPS = 350
+
+
+class Tip:
+    """One growing hyphal tip. It remembers where it just was (px, py)
+    so draw() can connect the dots with a line."""
+
+    def __init__(self, x, y, angle, shade=0):
+        self.x, self.y = x, y
+        self.px, self.py = x, y
         self.angle = angle
-        self.curve = random.uniform(-0.1, 0.1)
-        self.prob_turn = 0.0005
-        self.lifetime = random.randint(100, 600)
-        self.colour = random.randint(0, 15)
-        self.trail = [(x, y)]  # record trail
+        self.curve = random.uniform(-0.08, 0.08)
+        self.life = random.randint(120, 480)
+        self.shade = shade  # index into the active palette ramp
 
-    def move(self):
-        self.angle += self.curve
+    def step(self):
+        self.px, self.py = self.x, self.y
+        self.angle += self.curve + random.uniform(-0.03, 0.03)
+        if random.random() < 0.01:  # occasionally pick a new curl direction
+            self.curve = random.uniform(-0.08, 0.08)
+        self.x = (self.x + math.cos(self.angle) * 0.7) % pyxel.width
+        self.y = (self.y + math.sin(self.angle) * 0.7) % pyxel.height
+        self.life -= 1
 
-        if random.random() < self.prob_turn:
-            self.curve = random.uniform(-0.1, 0.1)
-
-        self.x = (self.x + math.sin(self.angle) * self.speed) % pyxel.width
-        self.y = (self.y - math.cos(self.angle) * self.speed) % pyxel.height
-        self.trail.append((self.x, self.y))
-
-        self.lifetime -= 0.5  # slow down lifetime reduction
 
 class App:
     def __init__(self):
-        pyxel.init(128, 128)
-        self.growing_points = [GrowingPoint(pyxel.width / 2, pyxel.height / 2, math.pi / 4)]
-        self.prob_split = 0.01  # increased branching probability
+        pyxel.init(128, 128, title="color mycelium")
+        pyxel.mouse(True)
+        self.palette = 0
+        self.fade = False
+        self.wipe = True  # ask draw() to clear the canvas once
+        self.tips = []
+        self.seed(64, 64)
+
+    def run(self):
         pyxel.run(self.update, self.draw)
 
-    def update(self):
-        for g in self.growing_points[:]:
-            if random.random() < self.prob_split and g.lifetime > 10:
-                new_growth = GrowingPoint(g.x, g.y, g.angle + math.pi / 4)
-                new_growth.curve = - g.curve
-                new_growth.colour = (new_growth.colour + 1) % 16
-                self.growing_points.append(new_growth)
-                g.angle -= math.pi / 4
+    def seed(self, x, y):
+        self.tips += [Tip(x, y, random.uniform(0, math.tau)) for _ in range(3)]
 
-            g.move()
-            if g.lifetime <= 0:
-                self.growing_points.remove(g)
+    def update(self):
+        if pyxel.btnp(pyxel.KEY_SPACE):
+            self.wipe = True
+        if pyxel.btnp(pyxel.KEY_F):
+            self.fade = not self.fade
+        if pyxel.btnp(pyxel.KEY_C):
+            self.palette = (self.palette + 1) % len(PALETTES)
+        if pyxel.btnp(pyxel.MOUSE_BUTTON_LEFT):
+            self.seed(pyxel.mouse_x, pyxel.mouse_y)
+
+        babies = []
+        for t in self.tips:
+            t.step()
+            crowded = len(self.tips) + len(babies) >= MAX_TIPS
+            if t.life > 30 and not crowded and random.random() < 0.012:
+                side = random.choice((-1, 1))
+                fork = t.angle + side * random.uniform(0.5, 0.9)
+                babies.append(Tip(t.x, t.y, fork, t.shade + 1))
+                t.angle -= side * 0.25  # parent leans the other way
+
+        self.tips = [t for t in self.tips if t.life > 0] + babies
+        if not self.tips:  # the colony died out -- replant the middle
+            self.seed(64, 64)
 
     def draw(self):
-        pyxel.cls(0)
-        for g in self.growing_points:
-            for x, y in g.trail:
-                if 0 <= x < pyxel.width and 0 <= y < pyxel.height:
-                    pyxel.pset(x, y, g.colour)
+        if self.wipe:
+            pyxel.cls(0)
+            self.wipe = False
+        if self.fade:  # stochastic fade: sprinkle black pixels
+            for _ in range(30):
+                pyxel.pset(random.randrange(128), random.randrange(128), 0)
+
+        ramp = PALETTES[self.palette]
+        for t in self.tips:
+            # skip the connecting line when the tip wrapped around an edge
+            if abs(t.x - t.px) < 2 and abs(t.y - t.py) < 2:
+                pyxel.line(t.px, t.py, t.x, t.y, ramp[t.shade % len(ramp)])
+            pyxel.pset(t.x, t.y, 7)  # glowing growth tip
 
 
-App()
+if __name__ == "__main__":
+    App().run()
