@@ -844,19 +844,20 @@ class App:
         if self.overdrive:
             pyxel.text(W - 48, H - 14, "OVRD", 14)
 
-        rx, ry, rr = CX, H - 16, 13                  # the scanner
+        rx, ry, rr = CX, H - 16, 14                  # the scanner
         pyxel.circb(rx, ry, rr, 2)
         pyxel.pset(rx, ry - rr, 3)
         for e in self.enemies:
             x1, _, z2 = self.cam(e.pos)
             d = math.hypot(x1, z2) or 1
             k = rr * min(1, d / 150) / d
-            pyxel.pset(rx + x1 * k, ry - z2 * k, KINDS[e.kind][5])
+            pyxel.rect(rx + x1 * k - 1, ry - z2 * k - 1, 2, 2, KINDS[e.kind][5])
         for p in self.pickups:
             x1, _, z2 = self.cam(p["pos"])
             d = math.hypot(x1, z2) or 1
             k = rr * min(1, d / 150) / d
             pyxel.pset(rx + x1 * k, ry - z2 * k, 10)
+        self.draw_guide()
 
         pyxel.line(CX - 7, CY, CX - 3, CY, 3)        # crosshair
         pyxel.line(CX + 3, CY, CX + 7, CY, 3)
@@ -883,6 +884,49 @@ class App:
             pyxel.rectb(1, 1, W - 2, H - 2, 8)
         if self.msg_t > 0:
             pyxel.text(CX - len(self.msg) * 2, H - 34, self.msg, 7)
+
+    def draw_guide(self):
+        """Edge chevron pointing the shortest turn to the nearest threat
+        (or the next salvage target once the lane is clear)."""
+        goal, col = None, 8
+        if self.enemies:
+            goal = min(self.enemies, key=lambda s: dist(s.pos, self.pos)).pos
+        else:
+            crystals = [p for p in self.pickups if p["kind"] == "crystal"]
+            stash = crystals or self.pickups
+            if stash:
+                goal = min(stash, key=lambda p: dist(p["pos"], self.pos))["pos"]
+                col = 10
+            elif self.roids:
+                goal = min(self.roids, key=lambda r: dist(r.pos, self.pos)).pos
+                col = 6
+        if goal is None:
+            return
+        x1, y2, z2 = self.cam(goal)
+        if z2 > 0.4:
+            sx = CX + x1 * FOV / z2
+            sy = CY - y2 * FOV / z2
+            if 12 < sx < W - 12 and 22 < sy < H - 32:
+                return                               # already in view
+            vx, vy = sx - CX, sy - CY
+        else:
+            vx, vy = x1, -y2                         # behind: turn this way
+            if abs(vx) + abs(vy) < 0.5:
+                vx = 1.0
+        n = math.hypot(vx, vy) or 1
+        vx, vy = vx / n, vy / n
+        tx = (CX - 14) / abs(vx) if vx else 1e9
+        ty_top = (CY - 24) / abs(vy) if vy else 1e9
+        ty_bot = (H - 46 - CY) / abs(vy) if vy else 1e9
+        t = min(tx, ty_top if vy < 0 else ty_bot)
+        ex, ey = CX + vx * t, CY + vy * t
+        if z2 <= 0.4 and pyxel.frame_count % 6 < 3:
+            col = 9                                  # blink: it is behind you
+        px_, py_ = -vy, vx
+        pyxel.tri(ex, ey, ex - vx * 6 + px_ * 4, ey - vy * 6 + py_ * 4,
+                  ex - vx * 6 - px_ * 4, ey - vy * 6 - py_ * 4, col)
+        d = int(dist(goal, self.pos))
+        pyxel.text(ex - vx * 14 - 4, ey - vy * 14 - 2, str(d), 13)
 
     def draw_panel(self, title):
         pyxel.rect(16, 14, W - 32, H - 28, 0)
