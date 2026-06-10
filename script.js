@@ -6,7 +6,7 @@ var LAUNCHER = 'https://kitao.github.io/pyxel/web/launcher/?run=alexkorol/pyxel-
 var games = [
     {
         title: 'Undervault',
-        description: 'A cross-section hex roguelike skeleton: dig the brick strata, mind gravity, hoard your torchlight. QEZC + AD or click to move, T mounts a torch, R delves anew.',
+        description: 'A room-by-room dungeon dive with depth lanes, torch-lit walls, and bump combat. Fight down eight strata for the Ember Crown. Arrows/WASD or click; I, L, C, H open screens.',
         image: 'demos/undervault.png',
         demoUrl: LAUNCHER + 'undervault',
         codeUrl: 'https://github.com/alexkorol/pyxel-arcade/blob/master/demos/undervault.py',

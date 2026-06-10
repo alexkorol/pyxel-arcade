@@ -1,331 +1,463 @@
-"""Undervault -- a cross-section hex roguelike (walking skeleton).
+"""Undervault -- a room-by-room dungeon dive with depth.
 
-The dungeon is a mountain seen side-on, built from offset brick rows.
-Offset rows give every cell six neighbors -- it IS a hex grid, drawn
-as masonry. Dig the strata, mind gravity, hoard your torchlight.
+Each room is a stone box seen from the front: a floor three lanes deep,
+a torch-lit back wall, doors in the side walls, stairs and hatches in
+the floor. Fight down through eight strata and take the Ember Crown.
 
-Controls:  A / D = step left / right        (arrows work too)
-           Q / E = climb up-left / up-right
-           Z / C = descend down-left / down-right
-           or click an adjacent cell        S = wait a turn
-           T = mount a torch (you carry 3)  R = delve anew
+Controls:  arrows / WASD = step (up-down changes floor lane)
+           bump a monster = attack       bump a cracked tile = dig
+           T = plant a torch             SPACE = wait
+           I inventory   L message log   C character   H help
+           click an adjacent tile to step there        R = new delve
 
-Study: offset coordinates as hexagons (Red Blob Games), BFS torchlight
-through carved air, pyxel.pal() palette banding for light falloff,
-and settle() -- gravity as a while-loop.
+Study: lane-based pseudo-3D (three floor strips with converging
+widths), pyxel.pal() light banding, a tiny turn scheduler, and
+modal UI screens over a paused world.
 """
 import random
 
 import pyxel
 
-SW_, SH_ = 240, 180          # screen
-CW, CH = 24, 16              # one brick
-COLS, ROWS = 44, 64          # the mountain
-AIR, EARTH, STONE, BEDROCK = range(4)
-HARDNESS = {EARTH: 1, STONE: 2}
+SW_, SH_ = 240, 180
+RW, RD = 10, 3                  # room floor: 10 tiles wide, 3 lanes deep
+LEVELS, ROOMS = 8, 5
+GOAL_LEVEL = LEVELS - 1
 
-# odd rows shift right half a brick; each parity has its own neighbor set
-# order: W, E, NW, NE, SW, SE
-NBRS = [
-    ((-1, 0), (1, 0), (-1, -1), (0, -1), (-1, 1), (0, 1)),   # even rows
-    ((-1, 0), (1, 0), (0, -1), (1, -1), (0, 1), (1, 1)),     # odd rows
-]
+# lane geometry: back lane is narrow and high, front is wide and low
+LANE_Y = (96, 119, 145)
+LANE_H = (23, 26, 30)
+TILE_W = (19, 21, 23)
+LANE_X0 = (25, 15, 5)
+WALL_Y = 36                     # top of the back wall
 
 PALETTE = [
     0x0A0814, 0x16102A, 0x3A2A1C, 0x6B4530, 0x9A6238, 0x343852,
-    0x6E7287, 0xC4C8DA, 0xEF3C63, 0xFF8A3D, 0xFFD23E, 0x2563C9,
+    0x6E7287, 0xC4C8DA, 0xEF3C63, 0xFF8A3D, 0xFFD23E, 0x20315E,
     0x41A6F6, 0x7A83AB, 0x221A30, 0x33232C,
 ]
-# light bands: 2 = lit (true colors), 1 = dim, 0 = remembered in the dark
 REMAPS = {
-    1: ((4, 3), (3, 2), (7, 6), (6, 5), (15, 14), (10, 9), (12, 13)),
+    1: ((4, 3), (3, 2), (7, 6), (6, 5), (15, 14), (10, 9), (12, 13),
+        (8, 2), (9, 3), (13, 5), (11, 5)),
     0: ((4, 2), (3, 2), (2, 2), (7, 5), (6, 5), (15, 1), (14, 1),
-        (10, 5), (9, 5), (12, 5), (13, 5)),
+        (10, 5), (9, 5), (12, 5), (13, 5), (8, 5), (11, 1)),
 }
-LIT, DIM = 4.0, 1.4          # band thresholds on the light field
+
+THEMES = [  # per two levels: name, wall (lit, mid, dark), floor pair
+    ("cellar", (4, 3, 2), (4, 3)),
+    ("crypt", (7, 6, 5), (6, 5)),
+    ("mines", (3, 2, 5), (4, 2)),
+    ("vault", (12, 11, 5), (6, 11)),
+]
+
+KINDS = {  # hp, damage, xp, speed flavor
+    "rat":      {"hp": 1, "xp": 1},
+    "bat":      {"hp": 1, "xp": 1},
+    "slime":    {"hp": 3, "xp": 2},
+    "skeleton": {"hp": 2, "xp": 2},
+}
+SPAWN_MIX = [("rat", "bat"), ("skeleton", "bat"), ("rat", "slime"),
+             ("skeleton", "slime")]
 
 
-def nbr(c, r, d):
-    dc, dr = NBRS[r & 1][d]
-    return c + dc, r + dr
+def tile_anchor(x, z):
+    """Bottom-center screen point of a floor tile."""
+    px = LANE_X0[z] + int((x + 0.5) * TILE_W[z])
+    return px, LANE_Y[z] + LANE_H[z] - 3
 
 
-def cell_px(c, r):
-    """Top-left pixel of a cell (the half-brick shift makes the hex)."""
-    return c * CW + (r & 1) * (CW // 2), r * CH
+class Monster:
+    def __init__(self, kind, x, z):
+        self.kind, self.x, self.z = kind, x, z
+        self.hp = KINDS[kind]["hp"]
+        self.face = random.choice((-1, 1))
+        self.awake = False
+        ax, ay = tile_anchor(x, z)
+        self.sx, self.sy = float(ax), float(ay)
+
+    def glide(self):
+        ax, ay = tile_anchor(self.x, self.z)
+        self.sx += (ax - self.sx) * 0.3
+        self.sy += (ay - self.sy) * 0.3
 
 
-class Bat:
-    def __init__(self, c, r):
-        self.c, self.r = c, r
-        x, y = cell_px(c, r)
-        self.px, self.py = float(x), float(y)
+class Room:
+    def __init__(self, level, index):
+        self.level, self.index = level, index
+        self.theme = THEMES[min(level // 2, 3)]
+        self.visited = False
+        self.blocked = set()
+        self.stairs_down = None
+        self.stairs_up = None
+        self.hatches = set()
+        self.cracked = set()
+        self.sconces = []
+        self.props = []
+        self.monsters = []
+        self.items = {}             # (x, z) -> "potion" | "gold" | "torch"
+        self.torches = []           # player-planted
+        self.crown = None
 
-    def flit(self, app):
-        opts = [nbr(self.c, self.r, d) for d in range(6)]
-        opts = [p for p in opts if app.mat(*p) == AIR and p != (app.pc, app.pr)]
-        if opts and random.random() < 0.7:
-            self.c, self.r = random.choice(opts)
+    def open_tiles(self):
+        out = []
+        for z in range(RD):
+            for x in range(RW):
+                p = (x, z)
+                if p in self.blocked or p in self.hatches or p in self.cracked:
+                    continue
+                if p in (self.stairs_down, self.stairs_up, self.crown):
+                    continue
+                if p in self.items or any((m.x, m.z) == p for m in self.monsters):
+                    continue
+                if p in ((0, 1), (RW - 1, 1)):      # keep doorways clear
+                    continue
+                out.append(p)
+        return out
 
-    def update(self):
-        x, y = cell_px(self.c, self.r)
-        self.px += (x - self.px) * 0.2
-        self.py += (y - self.py) * 0.2
+    def furnish(self):
+        for _ in range(random.randint(0, 3)):       # pillars
+            t = self.open_tiles()
+            if t:
+                self.blocked.add(random.choice(t))
+        if random.random() < 0.7:                   # wall sconces
+            for _ in range(random.randint(1, 2)):
+                self.sconces.append(random.randint(1, RW - 2))
+        for _ in range(random.randint(1, 2)):       # back-wall set dressing
+            self.props.append((random.randint(0, RW - 1), random.randrange(3)))
+        if random.random() < 0.25:
+            t = self.open_tiles()
+            if t:
+                self.hatches.add(random.choice(t))
+        if random.random() < 0.25:
+            t = self.open_tiles()
+            if t:
+                self.cracked.add(random.choice(t))
+        n = (1 if self.level else 0) + self.level // 3 + (random.random() < 0.6)
+        if self.level == 0 and self.index == 0:
+            n = 0                                   # the entry hall is safe
+        mix = SPAWN_MIX[min(self.level // 2, 3)]
+        for _ in range(int(n)):
+            t = self.open_tiles()
+            if t:
+                x, z = random.choice(t)
+                self.monsters.append(Monster(random.choice(mix), x, z))
+        for kind, odds in (("potion", 0.35), ("gold", 0.55), ("torch", 0.3)):
+            if random.random() < odds:
+                t = self.open_tiles()
+                if t:
+                    self.items[random.choice(t)] = kind
 
-    def draw(self, ox, oy):
-        x = int(self.px) - ox + CW // 2
-        y = int(self.py) - oy + CH // 2
-        flap = (pyxel.frame_count // 6) % 2
-        w = 5 if flap else 7
-        pyxel.tri(x - w, y - flap * 2, x - 1, y, x - 2, y - 3, 13)
-        pyxel.tri(x + w, y - flap * 2, x + 1, y, x + 2, y - 3, 13)
-        pyxel.rect(x - 2, y - 3, 4, 4, 5)
-        pyxel.pset(x - 1, y - 2, 8)
-        pyxel.pset(x + 1, y - 2, 8)
+    def solid(self, x, z):
+        return not (0 <= x < RW and 0 <= z < RD) or (x, z) in self.blocked
+
+    def monster_at(self, x, z):
+        for m in self.monsters:
+            if (m.x, m.z) == (x, z):
+                return m
+        return None
 
 
 class App:
     def __init__(self):
-        pyxel.init(SW_, SH_, title="undervault", fps=30)
+        pyxel.init(SW_, SH_, title="undervault", fps=30,
+                   quit_key=pyxel.KEY_NONE)
         pyxel.mouse(True)
         pyxel.colors[:] = PALETTE
+        self.make_sounds()
         self.delve()
 
     def run(self):
         pyxel.run(self.update, self.draw)
 
+    def make_sounds(self):
+        s = pyxel.sounds
+        s[0].set("c2e2", "pp", "44", "ff", 9)            # your hit lands
+        s[1].set("f1c1", "nn", "54", "ff", 11)           # you are hit
+        s[2].set("c3e3g3", "ttt", "444", "nnn", 8)       # pickup
+        s[3].set("g2e2c2", "ppp", "444", "fff", 10)      # descend
+        s[4].set("f1f1", "nn", "43", "ff", 7)            # dig
+        s[5].set("c3e3g3c4", "tttt", "5555", "nnnn", 7)  # level up
+        s[6].set("c2a1f1c1", "pppp", "5554", "ffff", 14) # death
+        s[7].set("c4g3", "tt", "33", "nn", 6)            # door
+
     # -- world generation ----------------------------------------------
     def delve(self):
-        self.grid = bytearray(COLS * ROWS)
-        for r in range(ROWS):
-            for c in range(COLS):
-                stratum = EARTH if r < 24 else STONE
-                if c < 2 or c > COLS - 3 or r < 2 or r > ROWS - 3:
-                    stratum = BEDROCK
-                self.grid[c + r * COLS] = stratum
+        self.world = [[Room(lv, i) for i in range(ROOMS)] for lv in range(LEVELS)]
+        for lv in range(LEVELS):
+            for room in self.world[lv]:
+                room.furnish()
+            if lv < LEVELS - 1:                     # guarantee a way down
+                for i in random.sample(range(ROOMS), random.randint(1, 2)):
+                    room = self.world[lv][i]
+                    t = room.open_tiles()
+                    if t:
+                        spot = random.choice(t)
+                        room.stairs_down = spot
+                        below = self.world[lv + 1][i]
+                        t2 = below.open_tiles()
+                        below.stairs_up = random.choice(t2) if t2 else (1, 1)
+        goal = self.world[GOAL_LEVEL][random.randrange(ROOMS)]
+        t = goal.open_tiles()
+        goal.crown = random.choice(t) if t else (5, 1)
+        t = goal.open_tiles()
+        if t:                                       # the crown has a keeper
+            goal.monsters.append(Monster("skeleton", *random.choice(t)))
 
-        self.carve_blob(COLS // 2, 5, 4, 2)             # the entry hall
-        for _ in range(4):                              # wandering tunnels
-            c, r = COLS // 2, 6
-            for _ in range(100):
-                d = random.choice((0, 1, 2, 3, 4, 4, 5, 5))
-                c, r = nbr(c, r, d)
-                c = max(3, min(COLS - 4, c))
-                r = max(3, min(ROWS - 4, r))
-                self.set_air(c, r)
-                if random.random() < 0.25:
-                    self.set_air(*nbr(c, r, random.randrange(6)))
-        for _ in range(7):                              # cosy caverns
-            self.carve_blob(random.randint(5, COLS - 6),
-                            random.randint(12, ROWS - 8),
-                            random.randint(2, 4), random.randint(1, 2))
-        for _ in range(3):                              # vertical shafts
-            c = random.randint(5, COLS - 6)
-            top = random.randint(4, 34)
-            for r in range(top, min(ROWS - 4, top + random.randint(6, 12))):
-                self.set_air(c, r)
-        for r in range(3, ROWS - 3):                    # drop orphan bricks
-            for c in range(3, COLS - 3):
-                if self.mat(c, r) in (EARTH, STONE) and \
-                        sum(self.mat(*nbr(c, r, d)) == AIR for d in range(6)) >= 5:
-                    self.set_air(c, r)
-
-        self.torches = []                               # mounted lights
-        spots = [(c, r) for r in range(3, ROWS - 3) for c in range(3, COLS - 3)
-                 if self.mat(c, r) == AIR and self.wallside(c, r)]
-        for c, r in random.sample(spots, min(5, len(spots))):
-            self.torches.append((c, r))
-
-        self.pc, self.pr = COLS // 2, 5
-        self.set_air(self.pc, self.pr)
-        x, y = cell_px(self.pc, self.pr)
-        self.ppx, self.ppy = float(x), float(y)
+        self.lv, self.ri = 0, 0
+        self.room().visited = True
+        self.x, self.z = RW // 2, 1
+        ax, ay = tile_anchor(self.x, self.z)
+        self.sx, self.sy = float(ax), float(ay)
+        self.hop = 0.0
         self.face = 1
-        self.hp = 3
-        self.packs = 3                                  # torches carried
-        self.cracks = {}
-        self.explored = set()
-        self.bats = []
-        deep = [(c, r) for c, r in spots if r > 14]
-        for c, r in random.sample(deep, min(3, len(deep))):
-            self.bats.append(Bat(c, r))
-        self.settle(quiet=True)
-        self.cam_x, self.cam_y = self.cam_target()
+        self.hearts, self.max_hearts = 3, 3
+        self.level, self.xp, self.kills, self.gold = 1, 0, 0, 0
+        self.potions, self.packs = 1, 2
+        self.turn = 0
         self.shake = 0.0
-        self.msg = "the undervault swallows your footsteps"
+        self.screen = None
+        self.inv_sel = 0
+        self.log_off = 0
+        self.log = []
+        self.say("the undervault swallows your footsteps")
+        self.say("somewhere below burns the Ember Crown")
 
-    def carve_blob(self, cx, cy, rx, ry):
-        for r in range(cy - ry, cy + ry + 1):
-            for c in range(cx - rx, cx + rx + 1):
-                if 2 < c < COLS - 3 and 2 < r < ROWS - 3 and \
-                        (c - cx) ** 2 / (rx * rx + .1) + (r - cy) ** 2 / (ry * ry + .1) <= 1:
-                    self.set_air(c, r)
+    def room(self):
+        return self.world[self.lv][self.ri]
 
-    def wallside(self, c, r):
-        return self.mat(*nbr(c, r, 0)) != AIR or self.mat(*nbr(c, r, 1)) != AIR
+    def say(self, text):
+        self.log.append(text)
+        del self.log[:-60]
 
-    # -- grid helpers ----------------------------------------------------
-    def mat(self, c, r):
-        if 0 <= c < COLS and 0 <= r < ROWS:
-            return self.grid[c + r * COLS]
-        return BEDROCK
+    # -- character ----------------------------------------------------
+    def attack_power(self):
+        return 1 + self.level // 3
 
-    def set_air(self, c, r):
-        if self.mat(c, r) != BEDROCK:
-            self.grid[c + r * COLS] = AIR
+    def gain_xp(self, n):
+        self.xp += n
+        need = 2 + 2 * self.level
+        if self.xp >= need:
+            self.xp -= need
+            self.level += 1
+            self.max_hearts = min(5, self.max_hearts + 1)
+            self.hearts = self.max_hearts
+            pyxel.play(3, 5)
+            self.say("you feel hardened by the dark (level %d)" % self.level)
 
-    # -- light: BFS radiance through carved air ---------------------------
-    def relight(self):
-        flick = pyxel.frame_count * 0.31
-        srcs = [(self.pc, self.pr, 7.0 + 0.4 * pyxel.sin(flick * 57.3))]
-        for i, (c, r) in enumerate(self.torches):
-            srcs.append((c, r, 6.2 + 0.5 * pyxel.sin(flick * 57.3 + i * 40)))
-        light = {}
-        queue = []
-        for c, r, lum in srcs:
-            if light.get((c, r), 0) < lum:
-                light[(c, r)] = lum
-                queue.append((c, r, lum))
-        while queue:
-            c, r, lum = queue.pop()
-            if lum <= 1:
-                continue
-            for d in range(6):
-                nc, nr = nbr(c, r, d)
-                if light.get((nc, nr), 0) >= lum - 1:
-                    continue
-                if self.mat(nc, nr) == AIR:
-                    light[(nc, nr)] = lum - 1
-                    queue.append((nc, nr, lum - 1))
-                else:                       # walls catch spill from the air
-                    light[(nc, nr)] = max(light.get((nc, nr), 0), lum - 0.6)
-        self.light = light
-        for cell, lum in light.items():
-            if lum >= 0.8:                  # seen once, remembered forever
-                self.explored.add(cell)
+    def hurt(self, n, why):
+        self.hearts -= n
+        self.shake = 4
+        pyxel.play(3, 1)
+        if self.hearts <= 0:
+            pyxel.play(3, 6)
+            self.say(why)
+            self.screen = "dead"
 
-    # -- gravity ----------------------------------------------------------
-    def settle(self, quiet=False):
-        fell = 0
-        while True:
-            below = [nbr(self.pc, self.pr, 4), nbr(self.pc, self.pr, 5)]
-            opts = [p for p in below if self.mat(*p) == AIR]
-            if len(opts) < 2:               # one solid brick is footing enough
-                break
-            self.pc, self.pr = opts[self.face > 0]  # tumble with momentum
-            fell += 1
-        if fell >= 4 and not quiet:
-            self.hp -= 1
-            self.shake = 4
-            self.msg = "you crash down %d fathoms" % fell
-            if self.hp <= 0:
-                self.msg = "the fall takes you. R delves anew"
-        elif fell and not quiet:
-            self.msg = "you tumble into the dark"
+    # -- the player turn ------------------------------------------------
+    def try_step(self, dx, dz):
+        if dx:
+            self.face = 1 if dx > 0 else -1
+        room = self.room()
+        nx, nz = self.x + dx, self.z + dz
 
-    # -- one player turn ---------------------------------------------------
-    def act(self, d):
-        if self.hp <= 0:
+        if nx < 0 or nx >= RW:                       # through a side door
+            if nz == self.z and self.z == 1:
+                ni = self.ri + (1 if nx >= RW else -1)
+                if 0 <= ni < ROOMS:
+                    self.ri = ni
+                    self.x = 0 if nx >= RW else RW - 1
+                    self.room().visited = True
+                    pyxel.play(3, 7)
+                    self.say("you push through a heavy door")
+                    ax, ay = tile_anchor(self.x, self.z)
+                    self.sx = ax - 30 * (1 if nx >= RW else -1)
+                    self.sy = float(ay)
+                    self.end_turn()
+                    return
+            self.say("cold stone. the way is %s" %
+                     ("down" if self.lv < GOAL_LEVEL else "near"))
             return
-        nc, nr = nbr(self.pc, self.pr, d)
-        if d in (0, 2, 4):
-            self.face = -1
-        elif d in (1, 3, 5):
-            self.face = 1
-        m = self.mat(nc, nr)
-        if m == AIR:
-            self.pc, self.pr = nc, nr
-            for b in self.bats:
-                if (b.c, b.r) == (nc, nr):
-                    b.flit(self)
-                    self.msg = "a bat shrieks past your ear"
-            self.settle()
-        elif m == BEDROCK:
-            self.msg = "the bedrock defies your pick"
-        else:
-            hits = self.cracks.get((nc, nr), 0) + 1
-            if hits >= HARDNESS[m]:
-                self.grid[nc + nr * COLS] = AIR
-                self.cracks.pop((nc, nr), None)
-                self.msg = "you dig through packed earth" if m == EARTH \
-                    else "the old stonework gives way"
-                self.settle()
+        if not 0 <= nz < RD:
+            return
+
+        m = room.monster_at(nx, nz)
+        if m:                                        # bump attack
+            m.hp -= self.attack_power()
+            m.awake = True
+            m.face = -self.face
+            pyxel.play(3, 0)
+            if m.hp <= 0:
+                room.monsters.remove(m)
+                self.kills += 1
+                self.say("the %s is destroyed" % m.kind)
+                self.gain_xp(KINDS[m.kind]["xp"])
             else:
-                self.cracks[(nc, nr)] = hits
-                self.msg = "the stone cracks under your pick"
-        for b in self.bats:
-            b.flit(self)
+                self.say("you strike the %s" % m.kind)
+            self.end_turn()
+            return
+        if (nx, nz) in room.blocked:
+            self.say("a pillar of old stone blocks you")
+            return
+        if (nx, nz) in room.cracked:                 # dig open a hatch
+            room.cracked.discard((nx, nz))
+            room.hatches.add((nx, nz))
+            pyxel.play(3, 4)
+            self.say("your pick opens the cracked floor")
+            self.end_turn()
+            return
 
-    def place_torch(self):
-        if self.hp <= 0 or self.packs <= 0:
-            self.msg = "no torches left in your pack"
+        self.x, self.z = nx, nz
+        self.hop = 1.0
+        self.after_step()
+        self.end_turn()
+
+    def after_step(self):
+        room = self.room()
+        p = (self.x, self.z)
+        item = room.items.pop(p, None)
+        if item:
+            pyxel.play(3, 2)
+            if item == "potion":
+                self.potions += 1
+                self.say("you pocket a red draught")
+            elif item == "torch":
+                self.packs += 1
+                self.say("you gather a fresh torch")
+            else:
+                g = random.randint(3, 9)
+                self.gold += g
+                self.say("you scoop up %d gold" % g)
+        if p == room.crown:
+            self.screen = "win"
+            pyxel.play(3, 5)
+            self.say("the Ember Crown is yours")
+        elif p == room.stairs_down:
+            self.travel(1, "you descend the worn stair")
+        elif p == room.stairs_up:
+            self.travel(-1, "you climb toward fresher air")
+        elif p in room.hatches:
+            self.travel(1, "you drop through the hatch", fall=True)
+
+    def travel(self, dlv, text, fall=False):
+        self.lv += dlv
+        room = self.room()
+        room.visited = True
+        pyxel.play(3, 3)
+        self.say(text)
+        spot = room.stairs_up if dlv > 0 and not fall else \
+            room.stairs_down if dlv < 0 else None
+        if fall or spot is None:
+            opts = room.open_tiles()
+            spot = random.choice(opts) if opts else (RW // 2, 1)
+        self.x, self.z = spot
+        ax, ay = tile_anchor(self.x, self.z)
+        self.sx = float(ax)
+        self.sy = ay - (60 if fall else 12)
+        if fall:
+            self.hurt(1, "the fall breaks you on the flagstones")
+            if self.screen != "dead":
+                self.say("you land hard. one heart bleeds away")
+
+    def plant_torch(self):
+        room = self.room()
+        if self.packs <= 0:
+            self.say("no torches left in your pack")
             return
-        if (self.pc, self.pr) in self.torches:
-            self.msg = "a torch already burns here"
+        if (self.x, self.z) in room.torches:
+            self.say("a torch already burns here")
             return
-        self.torches.append((self.pc, self.pr))
+        room.torches.append((self.x, self.z))
         self.packs -= 1
-        self.msg = "you mount a torch on the brickwork"
-        for b in self.bats:
-            b.flit(self)
+        self.say("you plant a torch in the cracks")
+        self.end_turn()
 
-    # -- io loop ------------------------------------------------------------
-    def cam_target(self):
-        x, y = cell_px(self.pc, self.pr)
-        tx = min(max(x + CW // 2 - SW_ // 2, 0), COLS * CW - SW_)
-        ty = min(max(y + CH // 2 - SH_ // 2, 0), ROWS * CH - SH_)
-        return tx, ty
+    def quaff(self):
+        if self.potions <= 0:
+            self.say("you have no draughts to drink")
+            return
+        if self.hearts >= self.max_hearts:
+            self.say("you feel hale already")
+            return
+        self.potions -= 1
+        self.hearts = min(self.max_hearts, self.hearts + 2)
+        pyxel.play(3, 2)
+        self.say("warmth floods back into you")
+        self.end_turn()
 
-    def hovered(self):
-        mx, my = pyxel.mouse_x + self.cam_x, pyxel.mouse_y + self.cam_y
-        r = int(my // CH)
-        c = int((mx - (r & 1) * (CW // 2)) // CW)
-        for d in range(6):
-            if nbr(self.pc, self.pr, d) == (c, r):
-                return d
-        return None
-
-    def update(self):
-        if pyxel.btnp(pyxel.KEY_R):
-            self.delve()
-        keys = ((pyxel.KEY_A, 0), (pyxel.KEY_LEFT, 0), (pyxel.KEY_D, 1),
-                (pyxel.KEY_RIGHT, 1), (pyxel.KEY_Q, 2), (pyxel.KEY_E, 3),
-                (pyxel.KEY_Z, 4), (pyxel.KEY_C, 5))
-        for key, d in keys:
-            if pyxel.btnp(key, 14, 5):
-                self.act(d)
+    # -- monsters --------------------------------------------------------
+    def end_turn(self):
+        self.turn += 1
+        room = self.room()
+        for m in list(room.monsters):
+            if self.screen == "dead":
                 break
-        else:
-            if pyxel.btnp(pyxel.KEY_S):
-                self.msg = "you listen to the dripping dark"
-                for b in self.bats:
-                    b.flit(self)
-            if pyxel.btnp(pyxel.KEY_T):
-                self.place_torch()
-            if pyxel.btnp(pyxel.MOUSE_BUTTON_LEFT):
-                d = self.hovered()
-                if d is not None:
-                    self.act(d)
+            if not m.awake:                          # dozing until you near
+                if abs(self.x - m.x) + abs(self.z - m.z) <= 4:
+                    m.awake = True
+                    self.say("the %s stirs in the dark" % m.kind)
+                elif random.random() < 0.4:
+                    dx, dz = random.choice(((1, 0), (-1, 0), (0, 1), (0, -1)))
+                    nx, nz = m.x + dx, m.z + dz
+                    if not (room.solid(nx, nz) or room.monster_at(nx, nz)
+                            or (nx, nz) == (self.x, self.z)
+                            or (nx, nz) in room.hatches
+                            or (nx, nz) == room.stairs_down):
+                        m.x, m.z = nx, nz
+                continue
+            steps = 2 if m.kind == "rat" else 1
+            if m.kind == "slime" and self.turn % 2:
+                steps = 0
+            for si in range(steps):
+                dx, dz = self.x - m.x, self.z - m.z
+                if abs(dx) + abs(dz) == 1:           # adjacent: bite
+                    if si > 0:
+                        break                        # a sprinting rat can't bite
+                    m.face = 1 if dx > 0 else -1 if dx < 0 else m.face
+                    self.hurt(1, "the %s tears you down" % m.kind)
+                    self.say("the %s strikes you" % m.kind)
+                    break
+                if m.kind == "bat" and random.random() < 0.5:
+                    moves = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+                    random.shuffle(moves)
+                else:
+                    moves = sorted(
+                        [(1, 0), (-1, 0), (0, 1), (0, -1)],
+                        key=lambda d: abs(self.x - (m.x + d[0])) +
+                                      abs(self.z - (m.z + d[1])))
+                for sx, sz in moves:
+                    nx, nz = m.x + sx, m.z + sz
+                    if room.solid(nx, nz) or room.monster_at(nx, nz):
+                        continue
+                    if (nx, nz) == (self.x, self.z):
+                        continue
+                    if (nx, nz) in room.hatches or (nx, nz) == room.stairs_down:
+                        continue
+                    m.x, m.z = nx, nz
+                    if sx:
+                        m.face = 1 if sx > 0 else -1
+                    break
 
-        x, y = cell_px(self.pc, self.pr)
-        self.ppx += (x - self.ppx) * 0.35
-        self.ppy += (y - self.ppy) * 0.35
-        tx, ty = self.cam_target()
-        self.cam_x += (tx - self.cam_x) * 0.15
-        self.cam_y += (ty - self.cam_y) * 0.15
-        self.shake *= 0.8
-        for b in self.bats:
-            b.update()
-        self.relight()
+    # -- light -------------------------------------------------------------
+    def relight(self):
+        room = self.room()
+        srcs = [(self.x, self.z, 4.6)]
+        for x, z in room.torches:
+            srcs.append((x, z, 4.4))
+        for x in room.sconces:
+            srcs.append((x, 0, 5.2))
+        flick = 0.25 * pyxel.sin(pyxel.frame_count * 9)
+        self.light = {}
+        for z in range(RD):
+            for x in range(RW):
+                best = 0.0
+                for sx, sz, rad in srcs:
+                    d = max(abs(x - sx), abs(z - sz)) + \
+                        0.4 * min(abs(x - sx), abs(z - sz))
+                    best = max(best, rad + flick - d)
+                self.light[(x, z)] = best
 
-    # -- rendering ------------------------------------------------------------
-    def band(self, c, r):
-        lum = self.light.get((c, r), 0)
-        if lum >= LIT:
-            return 2
-        if lum >= DIM:
-            return 1
-        return 0 if (c, r) in self.explored else None
+    def band(self, x, z):
+        lum = self.light.get((x, z), 0)
+        return 2 if lum >= 1.9 else 1 if lum >= 0.45 else 0
 
     def apply_band(self, b):
         pyxel.pal()
@@ -333,101 +465,424 @@ class App:
             for src, dst in REMAPS[b]:
                 pyxel.pal(src, dst)
 
-    def draw_cell(self, c, r, ox, oy):
-        b = self.band(c, r)
-        if b is None:
+    # -- input ---------------------------------------------------------------
+    def hovered(self):
+        mx, my = pyxel.mouse_x, pyxel.mouse_y
+        for z in range(RD):
+            if LANE_Y[z] <= my < LANE_Y[z] + LANE_H[z]:
+                x = int((mx - LANE_X0[z]) // TILE_W[z])
+                if 0 <= x < RW:
+                    dx, dz = x - self.x, z - self.z
+                    if abs(dx) + abs(dz) == 1:
+                        return dx, dz
+        return None
+
+    def update(self):
+        if pyxel.btnp(pyxel.KEY_R):
+            self.delve()
+        if self.screen:
+            self.update_screen()
+        else:
+            self.update_game()
+        ax, ay = tile_anchor(self.x, self.z)
+        self.sx += (ax - self.sx) * 0.28
+        self.sy += (ay - self.sy) * 0.28
+        self.hop = max(0.0, self.hop - 0.12)
+        self.shake *= 0.8
+        for m in self.room().monsters:
+            m.glide()
+        self.relight()
+
+    def update_game(self):
+        for keys, d in (((pyxel.KEY_A, pyxel.KEY_LEFT), (-1, 0)),
+                        ((pyxel.KEY_D, pyxel.KEY_RIGHT), (1, 0)),
+                        ((pyxel.KEY_W, pyxel.KEY_UP), (0, -1)),
+                        ((pyxel.KEY_S, pyxel.KEY_DOWN), (0, 1))):
+            for k in keys:
+                if pyxel.btnp(k, 12, 4):
+                    self.try_step(*d)
+                    return
+        if pyxel.btnp(pyxel.KEY_SPACE):
+            self.say("you hold your breath and listen")
+            self.end_turn()
+        elif pyxel.btnp(pyxel.KEY_T):
+            self.plant_torch()
+        elif pyxel.btnp(pyxel.KEY_P):
+            self.quaff()
+        elif pyxel.btnp(pyxel.KEY_I):
+            self.screen, self.inv_sel = "inv", 0
+        elif pyxel.btnp(pyxel.KEY_L):
+            self.screen, self.log_off = "log", 0
+        elif pyxel.btnp(pyxel.KEY_C):
+            self.screen = "char"
+        elif pyxel.btnp(pyxel.KEY_H):
+            self.screen = "help"
+        elif pyxel.btnp(pyxel.MOUSE_BUTTON_LEFT):
+            d = self.hovered()
+            if d:
+                self.try_step(*d)
+
+    def update_screen(self):
+        s = self.screen
+        if s in ("dead", "win"):
+            return                                   # only R applies
+        if pyxel.btnp(pyxel.KEY_ESCAPE) or pyxel.btnp(pyxel.KEY_Q) or \
+                pyxel.btnp(pyxel.MOUSE_BUTTON_RIGHT):
+            self.screen = None
+            return
+        if s == "inv":
+            if pyxel.btnp(pyxel.KEY_I):
+                self.screen = None
+            items = self.inventory()
+            if pyxel.btnp(pyxel.KEY_UP, 12, 4) or pyxel.btnp(pyxel.KEY_W, 12, 4):
+                self.inv_sel = max(0, self.inv_sel - 1)
+            if pyxel.btnp(pyxel.KEY_DOWN, 12, 4) or pyxel.btnp(pyxel.KEY_S, 12, 4):
+                self.inv_sel = min(len(items) - 1, self.inv_sel + 1)
+            if pyxel.btnp(pyxel.KEY_RETURN) and items:
+                name = items[self.inv_sel][0]
+                self.screen = None
+                if name == "red draught":
+                    self.quaff()
+                elif name == "torch":
+                    self.plant_torch()
+        elif s == "log":
+            if pyxel.btnp(pyxel.KEY_L):
+                self.screen = None
+            if pyxel.btnp(pyxel.KEY_UP, 12, 4):
+                self.log_off = min(max(0, len(self.log) - 14), self.log_off + 1)
+            if pyxel.btnp(pyxel.KEY_DOWN, 12, 4):
+                self.log_off = max(0, self.log_off - 1)
+        elif s == "char" and pyxel.btnp(pyxel.KEY_C):
+            self.screen = None
+        elif s == "help" and pyxel.btnp(pyxel.KEY_H):
+            self.screen = None
+
+    def inventory(self):
+        out = []
+        if self.potions:
+            out.append(("red draught", self.potions, "heals two hearts (P)"))
+        if self.packs:
+            out.append(("torch", self.packs, "plant to light a room (T)"))
+        out.append(("gold", self.gold, "the dead have no use for it"))
+        return out
+
+    # -- drawing: the room box ------------------------------------------------
+    def draw_scene(self):
+        room = self.room()
+        wall_lit, wall_mid, wall_dark = room.theme[1]
+        fa, fb = room.theme[2]
+
+        pyxel.cls(0)
+        pyxel.rect(0, 10, SW_, WALL_Y - 10, 1)               # ceiling void
+        for i in range(5):
+            pyxel.line(20 + i * 48, 10, 28 + i * 48, WALL_Y - 1, 0)
+
+        for x in range(RW):                                  # back wall
+            b = self.band(x, 0)
+            self.apply_band(b)
+            px = LANE_X0[0] + x * TILE_W[0]
+            for row in range(5):
+                y = WALL_Y + row * 12
+                off = (row % 2) * (TILE_W[0] // 2)
+                pyxel.rect(px + 1 - off, y + 1, TILE_W[0] - 2, 10, wall_mid)
+                pyxel.rect(px + 1 - off, y + 1, TILE_W[0] - 2, 2, wall_lit)
+            pyxel.pal()
+
+        for x, kind in room.props:                           # set dressing
+            b = self.band(x, 0)
+            self.apply_band(b)
+            px = LANE_X0[0] + int((x + 0.5) * TILE_W[0])
+            base = LANE_Y[0] + 2
+            t = room.theme[0]
+            if t == "cellar":
+                pyxel.rect(px - 4, base - 9, 8, 9, 3)
+                pyxel.rect(px - 4, base - 7, 8, 1, 2)
+                pyxel.rect(px - 4, base - 4, 8, 1, 2)
+            elif t == "crypt":
+                pyxel.rect(px - 5, base - 10, 10, 10, 6)
+                pyxel.rect(px - 3, base - 8, 6, 4, 5)
+            elif t == "mines":
+                pyxel.rect(px - 6, base - 14, 2, 14, 3)
+                pyxel.rect(px + 4, base - 14, 2, 14, 3)
+                pyxel.rect(px - 6, base - 14, 12, 2, 3)
+            else:
+                pyxel.rect(px - 5, base - 6, 10, 6, 5)
+                pyxel.rect(px - 3, base - 8, 6, 2, 10)
+            pyxel.pal()
+
+        for x in room.sconces:                               # sconce flames
+            px = LANE_X0[0] + int((x + 0.5) * TILE_W[0])
+            y = WALL_Y + 18
+            pyxel.rect(px - 1, y + 6, 2, 5, 3)
+            f = (pyxel.frame_count // 4 + x) % 2
+            pyxel.tri(px, y - 2 + f, px - 3, y + 6, px + 3, y + 6, 9)
+            pyxel.tri(px, y + 1 + f, px - 1, y + 6, px + 2, y + 6, 10)
+
+        for z in range(RD):                                  # floor lanes
+            for x in range(RW):
+                b = self.band(x, z)
+                self.apply_band(b)
+                px = LANE_X0[z] + x * TILE_W[z]
+                col = fa if (x + z) % 2 else fb
+                pyxel.rect(px + 1, LANE_Y[z] + 1, TILE_W[z] - 2, LANE_H[z] - 2, col)
+                pyxel.rect(px + 1, LANE_Y[z] + LANE_H[z] - 2, TILE_W[z] - 2, 1, 1)
+                p = (x, z)
+                cx = px + TILE_W[z] // 2
+                if p in room.hatches:
+                    pyxel.rect(px + 2, LANE_Y[z] + 3, TILE_W[z] - 4, LANE_H[z] - 7, 0)
+                    pyxel.rect(px + 2, LANE_Y[z] + 3, TILE_W[z] - 4, 2, 1)
+                elif p in room.cracked:
+                    pyxel.line(px + 4, LANE_Y[z] + 4, cx, LANE_Y[z] + LANE_H[z] - 6, 1)
+                    pyxel.line(cx, LANE_Y[z] + 8, px + TILE_W[z] - 5,
+                               LANE_Y[z] + LANE_H[z] - 4, 1)
+                elif p == room.stairs_down:
+                    for i in range(3):
+                        pyxel.rect(px + 2 + i * 2, LANE_Y[z] + 2 + i * 5,
+                                   TILE_W[z] - 4 - i * 4, 5, (5, 1, 0)[i])
+                elif p == room.stairs_up:
+                    for i in range(3):
+                        pyxel.rect(px + 2 + i * 2, LANE_Y[z] + LANE_H[z] - 6 - i * 5,
+                                   TILE_W[z] - 4 - i * 4, 4, (6, 7, 13)[i])
+                elif p == room.crown:
+                    pyxel.rect(cx - 4, LANE_Y[z] + 4, 8, LANE_H[z] - 10, 6)
+                    f = (pyxel.frame_count // 6) % 2
+                    pyxel.rect(cx - 4, LANE_Y[z] - f, 8, 4, 10)
+                    pyxel.tri(cx - 4, LANE_Y[z] - f, cx - 2, LANE_Y[z] - 4 - f,
+                              cx, LANE_Y[z] - f, 10)
+                    pyxel.tri(cx, LANE_Y[z] - f, cx + 2, LANE_Y[z] - 4 - f,
+                              cx + 4, LANE_Y[z] - f, 10)
+                    pyxel.pset(cx, LANE_Y[z] + 1 - f, 8)
+                item = room.items.get(p)
+                if item:
+                    ay = LANE_Y[z] + LANE_H[z] // 2
+                    if item == "potion":
+                        pyxel.rect(cx - 2, ay - 3, 4, 5, 8)
+                        pyxel.rect(cx - 1, ay - 5, 2, 2, 6)
+                    elif item == "torch":
+                        pyxel.rect(cx - 1, ay - 4, 2, 7, 3)
+                        pyxel.pset(cx, ay - 5, 9)
+                    else:
+                        pyxel.circ(cx, ay, 2, 10)
+                        pyxel.pset(cx - 2, ay + 1, 9)
+                        pyxel.pset(cx + 2, ay + 1, 9)
+                pyxel.pal()
+
+        for x, z in room.torches:                            # planted torches
+            px_, py_ = tile_anchor(x, z)
+            pyxel.rect(px_ - 1, py_ - 8, 2, 8, 3)
+            f = (pyxel.frame_count // 4 + x) % 2
+            pyxel.tri(px_, py_ - 13 + f, px_ - 3, py_ - 7, px_ + 3, py_ - 7, 9)
+            pyxel.pset(px_, py_ - 9, 10)
+
+        wl, wm, wd = room.theme[1]                           # side walls
+        for side in (0, 1):
+            sx0 = SW_ if side else 0
+            bx = LANE_X0[0] + RW * TILE_W[0] if side else LANE_X0[0]
+            fx = LANE_X0[2] + RW * TILE_W[2] if side else LANE_X0[2]
+            pyxel.tri(sx0, 10, bx, WALL_Y, sx0, LANE_Y[2] + LANE_H[2], wd)
+            pyxel.tri(bx, WALL_Y, bx, LANE_Y[0], sx0, LANE_Y[2] + LANE_H[2], wd)
+            pyxel.tri(bx, LANE_Y[0], fx, LANE_Y[2] + LANE_H[2], sx0,
+                      LANE_Y[2] + LANE_H[2], wd)
+            ni = self.ri + (1 if side else -1)
+            if 0 <= ni < ROOMS:                              # a door stands open
+                dx0 = SW_ - 16 if side else 2
+                pyxel.rect(dx0, 88, 14, 44, 1)
+                pyxel.rect(dx0 + (2 if side else 0), 88, 12, 3, wm)
+                pyxel.rect(dx0 + (10 if side else 0), 88, 4, 44, wm)
+                pyxel.circ(dx0 + 7, 88, 6, wm)
+                pyxel.circ(dx0 + 7, 89, 4, 1)
+
+    def draw_pillars(self, z):
+        room = self.room()
+        wall_lit, wall_mid, wall_dark = room.theme[1]
+        for x in range(RW):
+            if (x, z) not in room.blocked:
+                continue
+            b = self.band(x, z)
+            if b is None:
+                continue
+            self.apply_band(b)
+            px = LANE_X0[z] + x * TILE_W[z]
+            top = LANE_Y[z] - 26
+            pyxel.rect(px + 2, top, TILE_W[z] - 4, LANE_H[z] + 22, wall_dark)
+            pyxel.rect(px + 2, top, TILE_W[z] - 4, 3, wall_lit)
+            pyxel.rect(px + 2, top + 3, 2, LANE_H[z] + 19, wall_mid)
+            pyxel.pal()
+
+    def draw_knight(self):
+        x, y = int(self.sx), int(self.sy) - int(self.hop * 5)
+        f = self.face
+        bob = (pyxel.frame_count // 12) % 2
+        pyxel.elli(x - 5, int(self.sy) - 2, 10, 3, 1)        # shadow
+        pyxel.rect(x - 4, y - 4, 3, 3, 5)
+        pyxel.rect(x + 1, y - 4, 3, 3, 5)
+        pyxel.rect(x - 4 - f, y - 10 + bob, 8, 6 - bob, 8)
+        pyxel.rect(x - 4 - f, y - 7, 8, 1, 2)
+        pyxel.rect(x - f * 6, y - 9 + bob, 3, 4, 6)
+        pyxel.rect(x - 3, y - 15 + bob, 7, 6, 7)
+        pyxel.rect(x - 3 + (f > 0) * 4, y - 14 + bob, 3, 2, 0)
+        pyxel.rect(x - 1, y - 17 + bob, 2, 2, 12)
+        px_ = x + f * 5
+        pyxel.rect(px_, y - 14 + bob, 1, 9, 3)
+        pyxel.rect(px_ - 1, y - 16 + bob, 3, 2, 6)
+
+    def draw_monster(self, m):
+        x, y = int(m.sx), int(m.sy)
+        b = self.band(m.x, m.z)
+        if b == 0:
             return
         self.apply_band(b)
-        x, y = cell_px(c, r)
-        x, y = x - ox, y - oy
-        m = self.mat(c, r)
-        if m == AIR:
-            pyxel.rect(x, y, CW, CH, 15)
-            pyxel.rect(x, y + CH - 1, CW, 1, 14)        # rear masonry seam
-            h = c * 7 + r * 13                          # stony backdrop
-            pyxel.pset(x + h % CW, y + (h // 3) % (CH - 2), 14)
-            pyxel.pset(x + (h * 5 + 9) % CW, y + (h * 7 + 4) % (CH - 2), 14)
-        else:
-            lit, mid, dark = (4, 3, 2) if m == EARTH else (7, 6, 5)
-            pyxel.rect(x, y, CW, CH, 1)                 # mortar seam
-            pyxel.rect(x + 1, y + 1, CW - 2, CH - 2, mid)
-            pyxel.rect(x + 1, y + 1, CW - 2, 2, lit)    # catching the light
-            pyxel.rect(x + 1, y + CH - 3, CW - 2, 2, dark)
-            if m == BEDROCK:
-                for i in range(4):
-                    pyxel.pset(x + 4 + i * 5, y + 4 + (i * 7 + c * 3 + r) % 8, 0)
-            if (c, r) in self.cracks:
-                pyxel.line(x + CW // 2 - 2, y + 3, x + CW // 2 + 2, y + CH - 4, dark)
-                pyxel.pset(x + CW // 2 + 1, y + CH // 2, 0)
+        pyxel.elli(x - 5, y - 2, 10, 3, 1)
+        if m.kind == "rat":
+            pyxel.rect(x - 4, y - 4, 8, 4, 3)
+            pyxel.rect(x + m.face * 4, y - 5, 3, 3, 3)
+            pyxel.pset(x + m.face * 5, y - 4, 8)
+            pyxel.line(x - m.face * 4, y - 3, x - m.face * 7, y - 5, 14)
+        elif m.kind == "bat":
+            fl = (pyxel.frame_count // 5) % 2
+            yy = y - 8 - fl
+            pyxel.tri(x - 7, yy - 2 + fl * 3, x - 1, yy, x - 2, yy - 3, 13)
+            pyxel.tri(x + 7, yy - 2 + fl * 3, x + 1, yy, x + 2, yy - 3, 13)
+            pyxel.rect(x - 2, yy - 3, 4, 4, 5)
+            pyxel.pset(x - 1, yy - 2, 8)
+            pyxel.pset(x + 1, yy - 2, 8)
+        elif m.kind == "slime":
+            sq = (pyxel.frame_count // 8) % 2
+            pyxel.elli(x - 5, y - 7 + sq, 10, 7 - sq, 12)
+            pyxel.pset(x - 2, y - 5 + sq, 7)
+            pyxel.pset(x + 1, y - 5 + sq, 0)
+            pyxel.pset(x - 1, y - 5 + sq, 0)
+        else:                                                # skeleton
+            pyxel.rect(x - 3, y - 14, 7, 6, 7)
+            pyxel.pset(x - 1 + (m.face > 0) * 2, y - 12, 8)
+            pyxel.rect(x - 3, y - 8, 7, 5, 6)
+            pyxel.rect(x - 3, y - 6, 7, 1, 5)
+            pyxel.rect(x - 4, y - 3, 2, 3, 6)
+            pyxel.rect(x + 2, y - 3, 2, 3, 6)
+            pyxel.rect(x + m.face * 5, y - 12, 1, 8, 6)
+        if m.hp < KINDS[m.kind]["hp"]:                       # wound pips
+            for i in range(m.hp):
+                pyxel.pset(x - 2 + i * 2, y - 18, 8)
         pyxel.pal()
 
-    def draw_torch(self, c, r, ox, oy):
-        if self.band(c, r) is None:
-            return
-        x, y = cell_px(c, r)
-        x, y = x - ox + CW // 2, y - oy
-        pyxel.rect(x - 1, y + 8, 2, 5, 3)
-        f = (pyxel.frame_count // 4 + c * 7 + r) % 3
-        pyxel.tri(x, y + 1 + f % 2, x - 3, y + 8, x + 3, y + 8, 9)
-        pyxel.tri(x, y + 4 + f % 2, x - 1, y + 8, x + 2, y + 8, 10)
+    # -- drawing: hud and screens ----------------------------------------------
+    def draw_hud(self):
+        pyxel.rect(0, 0, SW_, 10, 0)
+        for i in range(self.max_hearts):
+            col = 8 if i < self.hearts else 5
+            x = 5 + i * 8
+            pyxel.tri(x, 3, x + 4, 3, x + 2, 7, col)
+            pyxel.rect(x, 2, 5, 2, col)
+        x = 5 + self.max_hearts * 8 + 6
+        pyxel.circ(x + 2, 4, 2, 10)
+        pyxel.text(x + 7, 2, str(self.gold), 13)
+        pyxel.rect(x + 26, 2, 2, 6, 9)
+        pyxel.text(x + 31, 2, str(self.packs), 13)
+        pyxel.rect(x + 44, 3, 4, 5, 8)
+        pyxel.text(x + 51, 2, str(self.potions), 13)
+        pyxel.text(SW_ - 72, 2, "lv%d  depth %dm" % (self.level, self.lv * 10), 13)
 
-    def draw_player(self, ox, oy):
-        x = int(self.ppx) - ox + CW // 2
-        y = int(self.ppy) - oy + CH
-        f = self.face
-        bob = (pyxel.frame_count // 12) % 2             # idle breathing
-        pyxel.rect(x - 4, y - 2, 3, 2, 5)               # boots
-        pyxel.rect(x + 1, y - 2, 3, 2, 5)
-        pyxel.rect(x - 4 - f, y - 8 + bob, 8, 6 - bob, 8)   # tabard
-        pyxel.rect(x - 4 - f, y - 5, 8, 1, 2)           # belt
-        pyxel.rect(x - f * 6, y - 7 + bob, 3, 4, 6)     # shield arm
-        pyxel.rect(x - 3, y - 13 + bob, 7, 6, 7)        # helm
-        pyxel.rect(x - 3 + (f > 0) * 4, y - 12 + bob, 3, 2, 0)  # visor
-        pyxel.rect(x - 1, y - 15 + bob, 2, 2, 12)       # plume
-        px_ = x + f * 5                                 # the pick
-        pyxel.rect(px_, y - 12 + bob, 1, 9, 3)
-        pyxel.rect(px_ - 1, y - 14 + bob, 3, 2, 6)
+        pyxel.rect(0, SH_ - 9, SW_, 9, 0)
+        if self.log:
+            pyxel.text(3, SH_ - 7, self.log[-1][:46], 13)
+        pyxel.text(SW_ - 26, SH_ - 7, "H ?", 5)
+
+    def panel(self, title):
+        pyxel.rect(20, 18, SW_ - 40, SH_ - 36, 0)
+        pyxel.rectb(20, 18, SW_ - 40, SH_ - 36, 13)
+        pyxel.rectb(21, 19, SW_ - 42, SH_ - 38, 5)
+        pyxel.text(28, 24, title, 10)
+        pyxel.line(28, 31, SW_ - 28, 31, 5)
+
+    def draw_screen(self):
+        s = self.screen
+        if s == "inv":
+            self.panel("inventory")
+            items = self.inventory()
+            for i, (name, count, note) in enumerate(items):
+                y = 38 + i * 16
+                if i == self.inv_sel:
+                    pyxel.rect(24, y - 2, SW_ - 48, 13, 1)
+                    pyxel.text(28, y, ">", 10)
+                pyxel.text(36, y, "%s x%d" % (name, count), 7)
+                pyxel.text(36, y + 7, note, 13)
+            pyxel.text(28, SH_ - 28, "up/down + enter to use, I closes", 5)
+        elif s == "log":
+            self.panel("message log")
+            lines = self.log[-(14 + self.log_off):len(self.log) - self.log_off]
+            for i, line in enumerate(lines[-14:]):
+                pyxel.text(28, 36 + i * 8, line[:46], 13 if i < 13 else 7)
+            pyxel.text(28, SH_ - 28, "up/down scrolls, L closes", 5)
+        elif s == "char":
+            self.panel("the delver")
+            rows = (
+                ("level", str(self.level)),
+                ("experience", "%d / %d" % (self.xp, 2 + 2 * self.level)),
+                ("hearts", "%d of %d" % (self.hearts, self.max_hearts)),
+                ("pick damage", str(self.attack_power())),
+                ("gold", str(self.gold)),
+                ("kills", str(self.kills)),
+                ("depth", "%d of %dm" % (self.lv * 10, GOAL_LEVEL * 10)),
+                ("turns in the dark", str(self.turn)),
+            )
+            for i, (k, v) in enumerate(rows):
+                pyxel.text(30, 38 + i * 11, k, 13)
+                pyxel.text(150, 38 + i * 11, v, 7)
+            pyxel.text(28, SH_ - 28, "C closes", 5)
+        elif s == "help":
+            self.panel("how to delve")
+            rows = (
+                "arrows or wasd  step / change lane",
+                "bump a monster  attack with your pick",
+                "bump cracks     dig the floor open",
+                "stairs + holes  carry you between depths",
+                "T plant torch   P drink a draught",
+                "I inventory     L log     C character",
+                "",
+                "reach depth %dm and take the Ember Crown" % (GOAL_LEVEL * 10),
+            )
+            for i, line in enumerate(rows):
+                pyxel.text(28, 38 + i * 11, line, 7 if i < 6 else 10)
+            pyxel.text(28, SH_ - 28, "H closes", 5)
+        elif s in ("dead", "win"):
+            self.panel("the delve ends" if s == "dead" else "the crown burns")
+            head = "the undervault keeps your bones" if s == "dead" else \
+                "you carry fire back to the sun"
+            pyxel.text(28, 40, head, 8 if s == "dead" else 10)
+            rows = (
+                ("depth reached", "%dm" % (self.lv * 10)),
+                ("level", str(self.level)),
+                ("kills", str(self.kills)),
+                ("gold", str(self.gold)),
+                ("turns", str(self.turn)),
+            )
+            for i, (k, v) in enumerate(rows):
+                pyxel.text(30, 58 + i * 11, k, 13)
+                pyxel.text(150, 58 + i * 11, v, 7)
+            pyxel.text(28, SH_ - 28, "R delves anew", 10)
 
     def draw(self):
-        ox = int(self.cam_x + random.uniform(-self.shake, self.shake))
-        oy = int(self.cam_y + random.uniform(-self.shake, self.shake))
-        pyxel.cls(0)
-        c0, r0 = max(0, ox // CW - 1), max(0, oy // CH)
-        c1, r1 = min(COLS, (ox + SW_) // CW + 2), min(ROWS, (oy + SH_) // CH + 2)
-        for r in range(r0, r1):
-            for c in range(c0, c1):
-                self.draw_cell(c, r, ox, oy)
-        for c, r in self.torches:
-            self.draw_torch(c, r, ox, oy)
-        for b in self.bats:
-            bb = self.band(b.c, b.r)
-            if bb:
-                self.apply_band(bb)
-                b.draw(ox, oy)
-                pyxel.pal()
-        if self.hp > 0:
-            self.draw_player(ox, oy)
-
-        d = self.hovered()                              # move preview
-        if d is not None and self.hp > 0:
-            hc, hr = nbr(self.pc, self.pr, d)
-            x, y = cell_px(hc, hr)
-            pyxel.rectb(x - ox, y - oy, CW, CH, 10)
-
-        pyxel.rect(0, 0, SW_, 9, 0)                     # hud strip
-        for i in range(3):
-            col = 8 if i < self.hp else 5
-            x = 5 + i * 9
-            pyxel.tri(x, 2, x + 4, 2, x + 2, 6, col)
-            pyxel.rect(x + 1, 1, 3, 2, col)
-        for i in range(self.packs):
-            pyxel.rect(36 + i * 5, 2, 2, 5, 9)
-            pyxel.pset(36 + i * 5, 1, 10)
-        depth = max(0, self.pr - 5)
-        pyxel.text(SW_ - 44, 2, "depth %2dm" % depth, 13)
-        pyxel.rect(0, SH_ - 9, SW_, 9, 0)
-        pyxel.text(3, SH_ - 7, self.msg, 13)
-        pyxel.text(SW_ - 78, SH_ - 7, "QEZC+AD T R", 5)
+        if self.shake > 0.5:
+            pyxel.camera(random.uniform(-self.shake, self.shake),
+                         random.uniform(-self.shake, self.shake))
+        self.draw_scene()
+        room = self.room()
+        for z in range(RD):                                  # painter's order
+            self.draw_pillars(z)
+            for m in room.monsters:
+                if m.z == z:
+                    self.draw_monster(m)
+            if self.z == z and self.screen not in ("dead",):
+                self.draw_knight()
+        d = self.hovered()
+        if d and not self.screen:
+            hx, hz = self.x + d[0], self.z + d[1]
+            px = LANE_X0[hz] + hx * TILE_W[hz]
+            pyxel.rectb(px, LANE_Y[hz], TILE_W[hz], LANE_H[hz], 10)
+        pyxel.camera()
+        self.draw_hud()
+        if self.screen:
+            self.draw_screen()
 
 
 if __name__ == "__main__":
