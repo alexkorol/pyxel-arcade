@@ -5,6 +5,13 @@
 var LAUNCHER = 'https://kitao.github.io/pyxel/web/launcher/?run=alexkorol/pyxel-arcade/master/demos/';
 var games = [
     {
+        title: 'Undervault',
+        description: 'A cross-section hex roguelike skeleton: dig the brick strata, mind gravity, hoard your torchlight. QEZC + AD or click to move, T mounts a torch, R delves anew.',
+        image: 'demos/undervault.png',
+        demoUrl: LAUNCHER + 'undervault',
+        codeUrl: 'https://github.com/alexkorol/pyxel-arcade/blob/master/demos/undervault.py',
+    },
+    {
         title: 'Color Mycelium',
         description: 'Branching hyphae paint slow rainbow threads. Click to plant spores, C cycles palettes, F toggles fade.',
         image: 'demos/color_mycelium.png',
