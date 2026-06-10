@@ -58,6 +58,29 @@ KINDS = {  # hp, damage, xp, speed flavor
 SPAWN_MIX = [("rat", "bat"), ("skeleton", "bat"), ("rat", "slime"),
              ("skeleton", "slime")]
 
+BLOCK_FONT = {  # 4x6 cells, drawn chunky for the title
+    "U": ("#..#", "#..#", "#..#", "#..#", "#..#", ".##."),
+    "N": ("#..#", "##.#", "##.#", "#.##", "#.##", "#..#"),
+    "D": ("###.", "#..#", "#..#", "#..#", "#..#", "###."),
+    "E": ("####", "#...", "###.", "#...", "#...", "####"),
+    "R": ("###.", "#..#", "#..#", "###.", "#.#.", "#..#"),
+    "V": ("#..#", "#..#", "#..#", "#..#", ".##.", ".##."),
+    "A": (".##.", "#..#", "#..#", "####", "#..#", "#..#"),
+    "L": ("#...", "#...", "#...", "#...", "#...", "####"),
+    "T": ("####", ".##.", ".##.", ".##.", ".##.", ".##."),
+}
+
+
+def block_text(text, x, y, cell, col):
+    for ch in text:
+        glyph = BLOCK_FONT.get(ch)
+        if glyph:
+            for gy, row in enumerate(glyph):
+                for gx, c in enumerate(row):
+                    if c == "#":
+                        pyxel.rect(x + gx * cell, y + gy * cell, cell, cell, col)
+        x += 5 * cell
+
 
 def tile_anchor(x, z):
     """Bottom-center screen point of a floor tile."""
@@ -164,6 +187,7 @@ class App:
         pyxel.colors[:] = PALETTE
         self.make_sounds()
         self.delve()
+        self.screen = "title"
 
     def run(self):
         pyxel.run(self.update, self.draw)
@@ -327,7 +351,10 @@ class App:
                 self.gold += g
                 self.say("you scoop up %d gold" % g)
         if p == room.crown:
-            self.screen = "win"
+            room.crown = None
+            self.screen = "winanim"
+            self.anim_t = 0
+            self.sparks = []
             pyxel.play(3, 5)
             self.say("the Ember Crown is yours")
         elif p == room.stairs_down:
@@ -438,6 +465,9 @@ class App:
 
     # -- light -------------------------------------------------------------
     def relight(self):
+        if self.screen == "winanim":                 # the vault ignites
+            self.light = {(x, z): 9.0 for z in range(RD) for x in range(RW)}
+            return
         room = self.room()
         srcs = [(self.x, self.z, 4.6)]
         for x, z in room.torches:
@@ -524,6 +554,36 @@ class App:
 
     def update_screen(self):
         s = self.screen
+        if s == "title":
+            for k in (pyxel.KEY_SPACE, pyxel.KEY_RETURN, pyxel.KEY_W,
+                      pyxel.KEY_A, pyxel.KEY_S, pyxel.KEY_D, pyxel.KEY_UP,
+                      pyxel.KEY_DOWN, pyxel.KEY_LEFT, pyxel.KEY_RIGHT,
+                      pyxel.MOUSE_BUTTON_LEFT):
+                if pyxel.btnp(k):
+                    self.screen = None
+                    pyxel.play(3, 7)
+                    return
+            return
+        if s == "winanim":
+            self.anim_t += 1
+            x, y = self.sx, self.sy
+            for _ in range(3):
+                self.sparks.append([x + random.uniform(-22, 22),
+                                    y - random.uniform(0, 26),
+                                    random.uniform(-0.3, 0.3),
+                                    random.uniform(-1.6, -0.6),
+                                    random.randint(20, 55),
+                                    random.choice((8, 9, 10, 10, 7))])
+            for sp in self.sparks:
+                sp[0] += sp[2]
+                sp[1] += sp[3]
+                sp[4] -= 1
+            self.sparks = [sp for sp in self.sparks if sp[4] > 0]
+            if self.anim_t % 36 == 1:
+                pyxel.play(3, 5)
+            if self.anim_t > 170:
+                self.screen = "win"
+            return
         if s in ("dead", "win"):
             return                                   # only R applies
         if pyxel.btnp(pyxel.KEY_ESCAPE) or pyxel.btnp(pyxel.KEY_Q) or \
@@ -787,6 +847,49 @@ class App:
             pyxel.text(3, SH_ - 7, self.log[-1][:46], 13)
         pyxel.text(SW_ - 26, SH_ - 7, "H ?", 5)
 
+    def draw_title(self):
+        pyxel.cls(0)
+        t = pyxel.frame_count
+        for i in range(26):                          # drifting embers
+            ex = (i * 67 + t // 3 * (1 + i % 3)) % SW_
+            ey = SH_ - ((i * 41 + t * (1 + i % 2)) // 4) % SH_
+            pyxel.pset(ex, ey, (9, 10, 2, 5)[i % 4])
+        cx = SW_ // 2
+        pyxel.rect(0, 142, SW_, 38, 1)               # dark hall floor
+        for x in range(0, SW_, 24):                  # floor brick seams
+            pyxel.rect(x + (142 // 16 % 2) * 12, 152, 22, 10, 2)
+            pyxel.rect(x + 12, 164, 22, 10, 2)
+        glow = (t // 5) % 3                          # crown above it all
+        pyxel.rect(cx - 7, 26 - glow % 2, 14, 5, 10)
+        for dx in (-7, -2, 3):
+            pyxel.tri(cx + dx, 26 - glow % 2, cx + dx + 2, 20 - glow % 2,
+                      cx + dx + 4, 26 - glow % 2, 10)
+        pyxel.pset(cx - 4 + (t // 7) % 9, 28 - glow % 2, 7)
+        col = (10, 9, 4)[(t // 8) % 3]               # ember-lit lettering
+        block_text("UNDERVAULT", cx - 99, 44, 2, 2)
+        block_text("UNDERVAULT", cx - 100, 43, 2, col)
+        pyxel.text(cx - 62, 62, "a dive for the ember crown", 13)
+        for tx in (cx - 70, cx + 70):                # flanking torches
+            pyxel.rect(tx - 1, 96, 2, 12, 3)
+            f = (t // 4 + tx) % 2
+            pyxel.tri(tx, 86 + f, tx - 4, 97, tx + 4, 97, 9)
+            pyxel.tri(tx, 91 + f, tx - 2, 97, tx + 2, 97, 10)
+        sx_, sy_ = self.sx, self.sy                  # borrow the knight pose
+        self.sx, self.sy = cx, 158
+        self.draw_knight()
+        self.sx, self.sy = sx_, sy_
+        bx = (t * 2) % (SW_ + 60) - 30               # a bat crosses the hall
+        by = 78 + pyxel.sin(t * 6) * 5
+        fl = (t // 5) % 2
+        pyxel.tri(bx - 6, by - fl * 3, bx - 1, by, bx - 1, by - 3, 13)
+        pyxel.tri(bx + 6, by - fl * 3, bx + 1, by, bx + 1, by - 3, 13)
+        pyxel.rect(bx - 1, by - 2, 3, 3, 5)
+        if (t // 14) % 2:
+            pyxel.text(cx - 36, 118, "press any key", 7)
+        pyxel.text(cx - 56, 130, "arrows move   H knows more", 5)
+        pyxel.text(3, SH_ - 7, "v2", 5)
+        pyxel.text(SW_ - 60, SH_ - 7, "pyxel arcade", 5)
+
     def panel(self, title):
         pyxel.rect(20, 18, SW_ - 40, SH_ - 36, 0)
         pyxel.rectb(20, 18, SW_ - 40, SH_ - 36, 13)
@@ -861,7 +964,30 @@ class App:
                 pyxel.text(150, 58 + i * 11, v, 7)
             pyxel.text(28, SH_ - 28, "R delves anew", 10)
 
+    def draw_winanim(self):
+        t = self.anim_t
+        x, y = int(self.sx), int(self.sy)
+        rise = min(t, 28)
+        cy = y - 18 - rise * 0.5                     # the crown ascends
+        for r in (t * 2 % 90, (t * 2 + 45) % 90):    # rings of triumph
+            if 4 < r < 80:
+                pyxel.circb(x, y - 12, r, 10 if r % 2 else 9)
+        for sx_, sy_, _, _, life, col in self.sparks:
+            pyxel.pset(int(sx_), int(sy_), col if life > 12 else 9)
+        pyxel.rect(x - 7, cy, 14, 5, 10)
+        for dx in (-7, -2, 3):
+            pyxel.tri(x + dx, cy, x + dx + 2, cy - 6, x + dx + 4, cy, 10)
+        pyxel.pset(x - 4 + (t // 5) % 9, cy + 2, 7)
+        if t > 24:
+            label = "THE EMBER CROWN"
+            pyxel.text(x - len(label) * 2 + 1, cy - 16, label, 0)
+            pyxel.text(x - len(label) * 2, cy - 17, label,
+                       (10, 9, 7)[(t // 6) % 3])
+
     def draw(self):
+        if self.screen == "title":
+            self.draw_title()
+            return
         if self.shake > 0.5:
             pyxel.camera(random.uniform(-self.shake, self.shake),
                          random.uniform(-self.shake, self.shake))
@@ -879,9 +1005,11 @@ class App:
             hx, hz = self.x + d[0], self.z + d[1]
             px = LANE_X0[hz] + hx * TILE_W[hz]
             pyxel.rectb(px, LANE_Y[hz], TILE_W[hz], LANE_H[hz], 10)
+        if self.screen == "winanim":
+            self.draw_winanim()
         pyxel.camera()
         self.draw_hud()
-        if self.screen:
+        if self.screen and self.screen != "winanim":
             self.draw_screen()
 
 

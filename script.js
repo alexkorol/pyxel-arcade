@@ -12,6 +12,13 @@ var games = [
         codeUrl: 'https://github.com/alexkorol/pyxel-arcade/blob/master/demos/undervault.py',
     },
     {
+        title: 'Starlance',
+        description: 'A wireframe space dogfighter with an FTL-style run: lasers overheat, missiles need a lock, credits drift out of every kill. Eight jumps, waystation shops, one carrier. Mouse steers, SPACE lasers, M missile.',
+        image: 'demos/starlance.png',
+        demoUrl: LAUNCHER + 'starlance',
+        codeUrl: 'https://github.com/alexkorol/pyxel-arcade/blob/master/demos/starlance.py',
+    },
+    {
         title: 'Color Mycelium',
         description: 'Branching hyphae paint slow rainbow threads. Click to plant spores, C cycles palettes, F toggles fade.',
         image: 'demos/color_mycelium.png',
