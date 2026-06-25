@@ -5,6 +5,13 @@
 var LAUNCHER = 'https://kitao.github.io/pyxel/web/launcher/?run=alexkorol/pyxel-arcade/master/demos/';
 var games = [
     {
+        title: 'Shell Lab',
+        description: "Elementary cellular automata grown into seashells -- the textile cone really does wear Wolfram's Rule 30. Dial any rule 0-255, pick a specimen palette, and watch the shell draw itself tip to aperture. Arrows change rule/specimen, click the preview thumbs; S/W/R/[ ] seed and pace it.",
+        image: 'demos/shell_lab.png',
+        demoUrl: LAUNCHER + 'shell_lab',
+        codeUrl: 'https://github.com/alexkorol/pyxel-arcade/blob/master/demos/shell_lab.py',
+    },
+    {
         title: 'Undervault',
         description: 'A room-by-room dungeon dive with depth lanes, torch-lit walls, and bump combat. Fight down eight strata for the Ember Crown. Arrows/WASD or click; I, L, C, H open screens.',
         image: 'demos/undervault.png',
