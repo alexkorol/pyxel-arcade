@@ -104,6 +104,24 @@ Axial coordinates `(q, r)` address hexagons; pixel→hex conversion uses cube ro
 2. Add rule `{1, 3}` as a third toggle and name what it grows.
 3. Color cells by *which seed* they grew from instead of by generation (flood the seed id through births).
 
+### shell_lab.py — elementary CA, 1-D signal shaded into a 3-D body
+The whole simulation is one `bytearray` row, stepped in place by the one
+line that *is* an elementary automaton: `out[i] = (rule >> nbhd) & 1`,
+where `nbhd` packs the three neighbours into a 0–7 index. Generations are
+never stored; each is painted as a single vertical column onto a canvas
+that's never cleared, so the picture *is* the memory (the `color_mycelium`
+trick again). The depth illusion is pure shading: each column squeezes the
+full circumference into its height, then colours every pixel by its `rim`
+distance from the spine — highlight, mid, shadow, contour — which curves a
+flat 1-D pattern away like a real shell. Palettes swap whole specimens via
+`pyxel.colors[:]`, the same idiom `undervault` uses.
+1. Add a specimen: pick a rule, draw it as a thumbnail first (`ca_triangle`),
+   then hand-tune a seven-colour ramp until it reads as a real shell.
+2. Default seed mode is `SINGLE` (one iconic Wolfram cone). Switch to
+   `RANDOM` and explain why the tents now cover the *whole* shell.
+3. Colour pigment cells by the generation they were born in (a slow ramp
+   down the shell) instead of by rim — growth rings.
+
 ### oculus_garden.py — kinematic chains, clamped vectors, shyness
 Each stalk is a chain of segments whose angles stack; sway is a phase-shifted sine down the chain, lean is mouse-driven. The iris is the cursor direction *clamped* to a max radius inside the eyeball; the pupil dilates with proximity. Blinking and getting shy when stared at are 4-line state machines.
 1. Make stalk height vary with where you plant it (shorter near edges, like real light competition).
