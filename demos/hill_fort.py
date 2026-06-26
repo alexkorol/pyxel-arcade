@@ -34,6 +34,9 @@ VIEW_ROWS = 24
 HUD_Y = VIEW_ROWS * TILE
 DAY_FRAMES = 600
 SAVE_FILE = "hill_fort_save.json"
+JOB_PATH_SCAN_LIMIT = 8
+FOREST_TREE_TARGET = 42
+FOREST_SPROUT_TARGET = 12
 
 PALETTE = [
     0x07080B, 0x15171D, 0x272A30, 0x44484E,
@@ -185,6 +188,7 @@ class Dwarf:
     work: int = 0
     job_retry: int = 0
     seen_job_rev: int = -1
+    idle_cd: int = 0
 
     def save(self):
         data = self.__dict__.copy()
@@ -200,6 +204,7 @@ class Dwarf:
         data.setdefault("skills", {})
         data.setdefault("job_retry", 0)
         data.setdefault("seen_job_rev", -1)
+        data.setdefault("idle_cd", 0)
         return cls(**data)
 
 
@@ -657,6 +662,9 @@ class App:
                 self.add_job("chop", self.z, self.cx, self.cy)
                 self.say("Chop marked. The tree looks nervous.")
             return
+        if tile.kind == "sapling":
+            self.say("That sapling is still working on being lumber.")
+            return
         if self.diggable(self.z, self.cx, self.cy):
             if tile.designated != "dig":
                 tile.designated = "dig"
@@ -760,8 +768,51 @@ class App:
             if d.hunger > 95 or d.thirst > 95:
                 d.mood -= 8
                 d.hp -= 1 if self.day % 2 == 0 else 0
+        self.forest_tick()
         self.say("Day %d: %d meals, %d mugs." % (self.day, eaten, drunk))
         self.daily_event()
+
+    def forest_tick(self):
+        trees = 0
+        saplings = []
+        grass = []
+        for y in range(MH):
+            for x in range(MW):
+                tile = self.t(0, x, y)
+                if tile.kind == "tree":
+                    trees += 1
+                elif tile.kind == "sapling":
+                    saplings.append((x, y))
+                elif tile.kind == "grass" and not tile.build and \
+                        not self.occupied_by_dwarf(0, x, y) and not self.animal_at(0, x, y):
+                    grass.append((x, y))
+
+        grow_chance = 0.12 if trees >= FOREST_TREE_TARGET else 0.24
+        grown = 0
+        for x, y in saplings:
+            if self.rng.random() < grow_chance:
+                self.set_kind(0, x, y, "tree")
+                grown += 1
+
+        shortage = max(0, FOREST_TREE_TARGET - trees - grown)
+        if not grass or shortage <= 0:
+            return
+        sprout_chance = 0.25 if trees > FOREST_TREE_TARGET // 2 else 0.75
+        max_sprouts = 1 if trees > FOREST_TREE_TARGET // 2 else 2
+        if saplings and len(saplings) >= FOREST_SPROUT_TARGET and trees > FOREST_TREE_TARGET // 3:
+            max_sprouts = 1
+            sprout_chance *= 0.5
+        sprouts = 0
+        if self.rng.random() < sprout_chance:
+            sprouts = 1 + (1 if max_sprouts > 1 and self.rng.random() < 0.35 else 0)
+        for _ in range(min(sprouts, len(grass), shortage)):
+            x, y = grass.pop(self.rng.randrange(len(grass)))
+            self.set_kind(0, x, y, "sapling")
+        if grown:
+            if grown == 1:
+                self.say("A sapling becomes a proper tree.")
+            else:
+                self.say("%d saplings become proper trees." % grown)
 
     def daily_event(self):
         if self.day == 2:
@@ -929,13 +980,25 @@ class App:
             self.update_job_work(d)
             return
 
+        if d.path:
+            self.follow_path(d)
+            return
+        if d.idle_cd > 0 and d.seen_job_rev == self.job_rev and not self.enemies:
+            d.idle_cd -= 1
+            return
+
         if d.tired > 86 and self.try_rest(d):
+            d.idle_cd = 0
             return
         if self.try_fight(d):
+            d.idle_cd = 0
             return
         if self.try_take_job(d):
+            d.idle_cd = 0
             return
         self.idle_wander(d)
+        d.seen_job_rev = self.job_rev
+        d.idle_cd = 10 + (d.id % 5) * 2
 
     def update_rest(self, d):
         if d.path:
@@ -963,9 +1026,9 @@ class App:
         if not self.enemies:
             return False
         options = []
-        for e in self.enemies:
-            if e.hp <= 0:
-                continue
+        enemies = sorted((e for e in self.enemies if e.hp > 0),
+                         key=lambda e: manhattan((d.z, d.x, d.y), (e.z, e.x, e.y)))
+        for e in enemies[:JOB_PATH_SCAN_LIMIT]:
             goals = set(self.adjacent_passable(e.z, e.x, e.y))
             path = self.find_path((d.z, d.x, d.y), goals)
             if path is not None and len(path) <= 16:
@@ -1009,37 +1072,44 @@ class App:
         if d.job_retry > 0 and d.seen_job_rev == self.job_rev:
             d.job_retry -= 1
             return False
-        candidates = []
+        rough = []
+        start = (d.z, d.x, d.y)
         for job in self.jobs:
             if job.claimed >= 0:
                 continue
             goals = self.job_goals(job)
             if not goals:
                 continue
-            path = self.find_path((d.z, d.x, d.y), set(goals))
+            priority = {"fight": 0, "dig": 1, "chop": 2, "fish": 2,
+                        "hunt": 2, "build": 3}.get(job.kind, 5)
+            priority -= self.role_fit(d, job)
+            dist = min(manhattan(start, goal) for goal in goals)
+            rough.append((priority, dist, job.id, goals))
+        if not rough:
+            self.defer_job_search(d)
+            return False
+
+        rough.sort()
+        for _, _, jid, goals in rough[:JOB_PATH_SCAN_LIMIT]:
+            job = self.job_by_id(jid)
+            if not job or job.claimed >= 0:
+                continue
+            path = self.find_path(start, set(goals))
             if path is not None:
-                priority = {"fight": 0, "dig": 1, "chop": 2, "fish": 2,
-                            "hunt": 2, "build": 3}.get(job.kind, 5)
-                priority -= self.role_fit(d, job)
-                candidates.append((priority, len(path), job.id, path))
-        if not candidates:
-            d.seen_job_rev = self.job_rev
-            d.job_retry = 16 + (d.id % 7) * 3
-            return False
-        _, _, jid, path = min(candidates)
-        job = self.job_by_id(jid)
-        if not job:
-            d.seen_job_rev = self.job_rev
-            d.job_retry = 16 + (d.id % 7) * 3
-            return False
-        job.claimed = d.id
-        d.job_id = job.id
-        d.task = job.kind
-        d.path = path
-        d.work = 0
-        d.job_retry = 0
+                job.claimed = d.id
+                d.job_id = job.id
+                d.task = job.kind
+                d.path = path
+                d.work = 0
+                d.job_retry = 0
+                d.seen_job_rev = self.job_rev
+                return True
+        self.defer_job_search(d)
+        return False
+
+    def defer_job_search(self, d):
         d.seen_job_rev = self.job_rev
-        return True
+        d.job_retry = min(90, 18 + len(self.jobs) // 2 + (d.id % 7) * 3)
 
     def update_job_work(self, d):
         job = self.job_by_id(d.job_id)
@@ -1467,6 +1537,12 @@ class App:
             pyxel.rect(px + 3, py + 4, 2, 4, 9)
             pyxel.rect(px + 1, py + 1, 6, 4, 11)
             pyxel.rect(px + 2, py, 4, 2, 10)
+        elif k == "sapling":
+            pyxel.rect(px, py, TILE, TILE, 10)
+            pyxel.rect(px + 3, py + 4, 1, 3, 9)
+            pyxel.pset(px + 2, py + 3, 11)
+            pyxel.pset(px + 4, py + 2, 11)
+            pyxel.pset(px + 5, py + 4, 11)
         elif k == "rock":
             pyxel.rect(px, py, TILE, TILE, 10)
             pyxel.rect(px + 2, py + 3, 4, 3, 4)
