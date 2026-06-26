@@ -20,6 +20,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import json
 import random
+import time
 
 import pyxel
 
@@ -182,6 +183,8 @@ class Dwarf:
     path: list = field(default_factory=list)
     step_cd: int = 0
     work: int = 0
+    job_retry: int = 0
+    seen_job_rev: int = -1
 
     def save(self):
         data = self.__dict__.copy()
@@ -195,6 +198,8 @@ class Dwarf:
         data.setdefault("role", "miner")
         data.setdefault("trait", "steady")
         data.setdefault("skills", {})
+        data.setdefault("job_retry", 0)
+        data.setdefault("seen_job_rev", -1)
         return cls(**data)
 
 
@@ -265,6 +270,7 @@ class App:
         self.next_job = 1
         self.next_enemy = 1
         self.next_animal = 1
+        self.job_rev = 0
         self.z = 0
         self.cx, self.cy = 24, 26
         self.cam_x, self.cam_y = 8, 7
@@ -275,6 +281,14 @@ class App:
         self.threat = 0
         self.comfort = 0
         self.stock_cap = 99
+        self.build_counts = {b["key"]: 0 for b in BUILDINGS}
+        self.build_positions = {b["key"]: [] for b in BUILDINGS}
+        self.floor_tiles = 0
+        self.fort_score_cache = 0
+        self.perf_update_ms = 0.0
+        self.perf_draw_ms = 0.0
+        self.path_calls = 0
+        self.path_nodes = 0
         self.game_over = False
         self.end_text = ""
         self.resources = {
@@ -288,6 +302,7 @@ class App:
         }
         self.messages = []
         self.make_map()
+        self.rebuild_caches()
         self.make_dwarves()
         self.make_animals()
         self.say("Seven dwarves, zero rooms, one optimistic hill.")
@@ -395,6 +410,58 @@ class App:
     def in_bounds(self, x, y):
         return 0 <= x < MW and 0 <= y < MH
 
+    def rebuild_caches(self):
+        self.build_counts = {b["key"]: 0 for b in BUILDINGS}
+        self.build_positions = {b["key"]: [] for b in BUILDINGS}
+        self.floor_tiles = 0
+        for z in range(LEVELS):
+            for x in range(MW):
+                for y in range(MH):
+                    tile = self.t(z, x, y)
+                    if tile.kind == "floor":
+                        self.floor_tiles += 1
+                    if tile.build:
+                        self.build_counts[tile.build] = self.build_counts.get(tile.build, 0) + 1
+                        self.build_positions.setdefault(tile.build, []).append((z, x, y))
+        self.update_fort_score()
+
+    def set_kind(self, z, x, y, kind):
+        tile = self.t(z, x, y)
+        if tile.kind == kind:
+            return
+        if tile.kind == "floor" and kind != "floor":
+            self.floor_tiles = max(0, self.floor_tiles - 1)
+        elif tile.kind != "floor" and kind == "floor":
+            self.floor_tiles += 1
+        tile.kind = kind
+        self.update_fort_score()
+
+    def set_build(self, z, x, y, build):
+        tile = self.t(z, x, y)
+        old = tile.build
+        if old == build:
+            return
+        pos = (z, x, y)
+        if old:
+            self.build_counts[old] = max(0, self.build_counts.get(old, 0) - 1)
+            if pos in self.build_positions.get(old, []):
+                self.build_positions[old].remove(pos)
+        tile.build = build
+        if build:
+            self.build_counts[build] = self.build_counts.get(build, 0) + 1
+            self.build_positions.setdefault(build, []).append(pos)
+        self.update_fort_score()
+
+    def update_fort_score(self):
+        beds = self.build_counts.get("bed", 0)
+        stock = self.build_counts.get("stockpile", 0)
+        workshops = sum(self.build_counts.get(k, 0)
+                        for k in ("carpenter", "mason", "kitchen", "crafts"))
+        doors = self.build_counts.get("door", 0)
+        walls = self.build_counts.get("wall", 0)
+        self.fort_score_cache = beds * 2 + stock * 2 + workshops * 3 + doors + \
+            walls // 3 + self.resources.get("goods", 0) // 2 + min(4, self.floor_tiles // 10)
+
     def say(self, text):
         self.messages.append(text)
         del self.messages[:-8]
@@ -419,6 +486,7 @@ class App:
             "next_job": self.next_job,
             "next_enemy": self.next_enemy,
             "next_animal": self.next_animal,
+            "job_rev": self.job_rev,
             "messages": self.messages,
         }
         try:
@@ -457,6 +525,8 @@ class App:
         self.next_job = data["next_job"]
         self.next_enemy = data["next_enemy"]
         self.next_animal = data.get("next_animal", len(self.animals) + 1)
+        self.job_rev = data.get("job_rev", 0)
+        self.rebuild_caches()
         self.messages = data.get("messages", [])
         self.game_over = False
         self.state = "play"
@@ -464,21 +534,27 @@ class App:
 
     # -- input ----------------------------------------------------------
     def update(self):
+        start = time.perf_counter()
+        self.path_calls = 0
+        self.path_nodes = 0
         if self.state == "title":
             if pyxel.btnp(pyxel.KEY_RETURN) or pyxel.btnp(pyxel.KEY_SPACE):
                 self.seed = random.randrange(1 << 30)
                 self.new_fort()
                 self.state = "play"
+            self.perf_update_ms = (time.perf_counter() - start) * 1000
             return
         if pyxel.btnp(pyxel.KEY_R):
             self.seed = random.randrange(1 << 30)
             self.new_fort()
             self.state = "play"
         if self.game_over:
+            self.perf_update_ms = (time.perf_counter() - start) * 1000
             return
 
         self.update_input()
         self.update_sim()
+        self.perf_update_ms = (time.perf_counter() - start) * 1000
 
     def update_input(self):
         if pyxel.btnp(pyxel.KEY_ESCAPE) and self.mode != "mine":
@@ -596,6 +672,7 @@ class App:
         self.jobs = [j for j in self.jobs
                      if not (j.z == self.z and j.x == self.cx and j.y == self.cy)]
         if len(self.jobs) != before:
+            self.job_rev += 1
             self.say("Canceled the job before it became tradition.")
 
     def add_job(self, kind, z, x, y, build="", target=-1):
@@ -606,6 +683,7 @@ class App:
         job = Job(self.next_job, kind, z, x, y, build, target)
         self.next_job += 1
         self.jobs.append(job)
+        self.job_rev += 1
         return job
 
     def can_pay(self, build):
@@ -635,11 +713,11 @@ class App:
         self.say("Ordered %s. Someone will get to it." % BUILD_BY_KEY[build]["name"])
 
     def place_stairs(self, x, y, z):
-        self.t(z, x, y).kind = "floor"
-        self.t(z, x, y).build = "stairs"
+        self.set_kind(z, x, y, "floor")
+        self.set_build(z, x, y, "stairs")
         if z + 1 < LEVELS:
-            self.t(z + 1, x, y).kind = "floor"
-            self.t(z + 1, x, y).build = "stairs"
+            self.set_kind(z + 1, x, y, "floor")
+            self.set_build(z + 1, x, y, "stairs")
 
     def cost_text(self, build):
         cost = BUILD_BY_KEY[build]["cost"]
@@ -720,9 +798,11 @@ class App:
             self.threat += 1
 
     def workshops_tick(self):
+        changed_score = False
         if self.has_building("carpenter") and self.resources["wood"] > 0:
             self.resources["wood"] -= 1
             self.comfort += 1
+            changed_score = True
             if self.comfort % 3 == 0:
                 self.say("The carpenter makes the fort slightly less awful.")
         if self.has_building("mason") and self.resources["stone"] > 0:
@@ -732,49 +812,35 @@ class App:
             self.resources["wood"] -= 1
             self.resources["food"] = min(self.stock_cap, self.resources["food"] + 2)
             self.comfort += 1
+            changed_score = True
         if self.has_building("crafts"):
             if self.resources["stone"] > 0:
                 self.resources["stone"] -= 1
                 self.resources["goods"] = min(self.stock_cap, self.resources["goods"] + 1)
                 self.comfort += 1
+                changed_score = True
             elif self.resources["wood"] > 0:
                 self.resources["wood"] -= 1
                 self.resources["goods"] = min(self.stock_cap, self.resources["goods"] + 1)
+                changed_score = True
         if self.has_building("stockpile"):
             self.stock_cap = 140
+        if changed_score:
+            self.update_fort_score()
 
     def has_building(self, key):
-        for z in range(LEVELS):
-            for x in range(MW):
-                for y in range(MH):
-                    if self.t(z, x, y).build == key:
-                        return True
-        return False
+        return self.build_counts.get(key, 0) > 0
 
     def count_building(self, key):
-        n = 0
-        for z in range(LEVELS):
-            for x in range(MW):
-                for y in range(MH):
-                    if self.t(z, x, y).build == key:
-                        n += 1
-        return n
+        return self.build_counts.get(key, 0)
 
     def fort_score(self):
-        beds = self.count_building("bed")
-        stock = self.count_building("stockpile")
-        workshops = self.count_building("carpenter") + self.count_building("mason") + \
-            self.count_building("kitchen") + self.count_building("crafts")
-        doors = self.count_building("door")
-        walls = self.count_building("wall")
-        dug = 0
-        for z in range(LEVELS):
-            for x in range(MW):
-                for y in range(MH):
-                    if self.t(z, x, y).kind == "floor":
-                        dug += 1
-        return beds * 2 + stock * 2 + workshops * 3 + doors + walls // 3 + \
-            self.resources.get("goods", 0) // 2 + min(4, dug // 10)
+        self.update_fort_score()
+        return self.fort_score_cache
+
+    def clock_text(self):
+        minutes = int((self.clock / DAY_FRAMES) * 24 * 60)
+        return "%02d:%02d" % ((minutes // 60) % 24, minutes % 60)
 
     def add_migrant(self):
         if len(self.alive_dwarves()) >= 11:
@@ -827,6 +893,17 @@ class App:
 
     def alive_dwarves(self):
         return [d for d in self.dwarves if d.hp > 0]
+
+    def dwarf_activity_counts(self):
+        idle = working = resting = 0
+        for d in self.alive_dwarves():
+            if d.task == "rest":
+                resting += 1
+            elif d.job_id >= 0 or d.task in ("fight", "dig", "chop", "fish", "hunt", "build"):
+                working += 1
+            else:
+                idle += 1
+        return idle, working, resting
 
     def update_dwarf(self, d):
         if d.hp <= 0:
@@ -929,6 +1006,9 @@ class App:
             d.target = -1
 
     def try_take_job(self, d):
+        if d.job_retry > 0 and d.seen_job_rev == self.job_rev:
+            d.job_retry -= 1
+            return False
         candidates = []
         for job in self.jobs:
             if job.claimed >= 0:
@@ -943,16 +1023,22 @@ class App:
                 priority -= self.role_fit(d, job)
                 candidates.append((priority, len(path), job.id, path))
         if not candidates:
+            d.seen_job_rev = self.job_rev
+            d.job_retry = 16 + (d.id % 7) * 3
             return False
         _, _, jid, path = min(candidates)
         job = self.job_by_id(jid)
         if not job:
+            d.seen_job_rev = self.job_rev
+            d.job_retry = 16 + (d.id % 7) * 3
             return False
         job.claimed = d.id
         d.job_id = job.id
         d.task = job.kind
         d.path = path
         d.work = 0
+        d.job_retry = 0
+        d.seen_job_rev = self.job_rev
         return True
 
     def update_job_work(self, d):
@@ -981,7 +1067,7 @@ class App:
         tile = self.t(job.z, job.x, job.y)
         if job.kind == "dig":
             was = tile.kind
-            tile.kind = "floor"
+            self.set_kind(job.z, job.x, job.y, "floor")
             tile.designated = ""
             gain = 2 if was == "ore" else 1
             self.resources["stone"] = min(self.stock_cap, self.resources["stone"] + gain)
@@ -993,7 +1079,7 @@ class App:
                 self.say("%s mines stone." % d.name)
             self.gain_skill(d, "mine")
         elif job.kind == "chop":
-            tile.kind = "grass"
+            self.set_kind(job.z, job.x, job.y, "grass")
             tile.designated = ""
             self.resources["wood"] = min(self.stock_cap, self.resources["wood"] + 3)
             self.say("%s converts tree into future furniture." % d.name)
@@ -1002,7 +1088,7 @@ class App:
             if job.build == "stairs":
                 self.place_stairs(job.x, job.y, min(job.z, LEVELS - 2))
             else:
-                tile.build = job.build
+                self.set_build(job.z, job.x, job.y, job.build)
             self.say("%s builds %s." % (d.name, BUILD_BY_KEY[job.build]["name"]))
             self.gain_skill(d, "build")
         elif job.kind == "fish":
@@ -1021,6 +1107,8 @@ class App:
                 self.say("%s hunts a %s." % (d.name, animal.kind))
             self.gain_skill(d, "hunt")
         self.jobs.remove(job)
+        self.job_rev += 1
+        self.update_fort_score()
         d.job_id = -1
         d.task = "idle"
         d.work = 0
@@ -1110,13 +1198,7 @@ class App:
         return None
 
     def find_buildings(self, key):
-        out = []
-        for z in range(LEVELS):
-            for x in range(MW):
-                for y in range(MH):
-                    if self.t(z, x, y).build == key:
-                        out.append((z, x, y))
-        return out
+        return list(self.build_positions.get(key, ()))
 
     def idle_wander(self, d):
         if pyxel.frame_count % (55 + d.id * 7) != 0:
@@ -1215,6 +1297,7 @@ class App:
         return out
 
     def find_path(self, start, goals, enemy=False):
+        self.path_calls += 1
         if not goals:
             return None
         if start in goals:
@@ -1235,8 +1318,10 @@ class App:
                     while came[path[-1]] is not None:
                         path.append(came[path[-1]])
                     path.reverse()
+                    self.path_nodes += len(came)
                     return path[1:] if path and path[0] == start else path
                 q.append(nxt)
+        self.path_nodes += len(came)
         return None
 
     def follow_path(self, d):
@@ -1252,8 +1337,10 @@ class App:
 
     # -- drawing --------------------------------------------------------
     def draw(self):
+        start = time.perf_counter()
         if self.state == "title":
             self.draw_title()
+            self.perf_draw_ms = (time.perf_counter() - start) * 1000
             return
         self.draw_map()
         self.draw_hud()
@@ -1267,6 +1354,7 @@ class App:
             self.draw_help()
         if self.game_over:
             self.draw_end()
+        self.perf_draw_ms = (time.perf_counter() - start) * 1000
 
     def draw_title(self):
         pyxel.cls(0)
@@ -1477,16 +1565,21 @@ class App:
         pyxel.rect(0, HUD_Y, W, H - HUD_Y, 0)
         pyxel.rectb(0, HUD_Y, W, H - HUD_Y, 3)
         alive = len(self.alive_dwarves())
+        idle, working, resting = self.dwarf_activity_counts()
         res = self.resources
-        pyxel.text(4, HUD_Y + 4, "HILL FORT  z%d %s  day %d" %
-                   (self.z, LEVEL_NAMES[self.z], self.day), 7)
+        pyxel.text(4, HUD_Y + 4, "HILL z%d %s d%d %s th%d" %
+                   (self.z, LEVEL_NAMES[self.z], self.day,
+                    self.clock_text(), self.threat), 7)
         self.draw_status_pips(176, HUD_Y + 4)
         pyxel.text(4, HUD_Y + 13, "D%d/%d W%d S%d F%d A%d O%d T%d G%d" %
                    (alive, len(self.dwarves), res["wood"], res["stone"],
                     res["food"], res["drink"], res["ore"], res["tools"],
                     res.get("goods", 0)), 6)
-        pyxel.text(4, HUD_Y + 22, "mode %-7s jobs %d threat %d score %d" %
-                   (self.mode, len(self.jobs), self.threat, self.fort_score()), 5)
+        pyxel.text(4, HUD_Y + 22,
+                   "%-7s j%d i%d w%d r%d p%d/%d sc%d u%.1f d%.1f" %
+                   (self.mode, len(self.jobs), idle, working, resting,
+                    self.path_calls, self.path_nodes, self.fort_score(),
+                    self.perf_update_ms, self.perf_draw_ms), 5)
         pyxel.text(4, HUD_Y + 31, self.tile_info(), 13)
         if self.messages:
             pyxel.text(4, HUD_Y + 42, trim(self.messages[-1], 61), 6)
