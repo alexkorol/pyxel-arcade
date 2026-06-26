@@ -5,6 +5,13 @@
 var LAUNCHER = 'https://kitao.github.io/pyxel/web/launcher/?run=alexkorol/pyxel-arcade/master/demos/';
 var games = [
     {
+        title: 'Hill Fort',
+        description: 'A tiny fortress roguelite: dig into a hill, let dwarves pick jobs from your designations, gather stone and wood, build beds/workshops/walls, switch z-levels, and survive vermin, cave noise, and small raids. Arrows move, D digs/chops, B builds, Q/E changes depth.',
+        image: 'demos/hill_fort.png',
+        demoUrl: LAUNCHER + 'hill_fort',
+        codeUrl: 'https://github.com/alexkorol/pyxel-arcade/blob/master/demos/hill_fort.py',
+    },
+    {
         title: 'Stone Ledger',
         description: 'A pocket world forge and legends viewer: value-noise continents, rivers, biomes, civ sites, roads, artifacts, wars, disasters, and a browseable event timeline. R rerolls, Enter forges, Tab flips map/biome/civ/legends/history.',
         image: 'demos/stone_ledger.png',
