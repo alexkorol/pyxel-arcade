@@ -5,6 +5,13 @@
 var LAUNCHER = 'https://kitao.github.io/pyxel/web/launcher/?run=alexkorol/pyxel-arcade/master/demos/';
 var games = [
     {
+        title: 'Stone Ledger',
+        description: 'A pocket world forge and legends viewer: value-noise continents, rivers, biomes, civ sites, roads, artifacts, wars, disasters, and a browseable event timeline. R rerolls, Enter forges, Tab flips map/biome/civ/legends/history.',
+        image: 'demos/stone_ledger.png',
+        demoUrl: LAUNCHER + 'stone_ledger',
+        codeUrl: 'https://github.com/alexkorol/pyxel-arcade/blob/master/demos/stone_ledger.py',
+    },
+    {
         title: 'Shell Lab',
         description: "Elementary cellular automata grown into seashells -- the textile cone really does wear Wolfram's Rule 30. Dial any rule 0-255, pick a specimen palette, and watch the shell draw itself tip to aperture. Arrows change rule/specimen, click the preview thumbs; S/W/R/[ ] seed and pace it.",
         image: 'demos/shell_lab.png',
