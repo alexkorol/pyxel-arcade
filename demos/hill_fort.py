@@ -5,7 +5,7 @@ few useful rooms, and survive the first ugly weeks of fort life.
 
 Controls:  arrows move cursor           Q/E switch z-level
            D designate dig/chop          B build mode
-           1-7 pick building             Enter place building
+           1-9 pick building             Enter place building
            I inspect                     J job list
            Esc closes menus              X cancel designation/job
            S/L save/load JSON
@@ -26,8 +26,9 @@ import pyxel
 
 W = H = 256
 TILE = 8
-MW = MH = 32
+MW, MH = 48, 40
 LEVELS = 3
+VIEW_COLS = W // TILE
 VIEW_ROWS = 24
 HUD_Y = VIEW_ROWS * TILE
 DAY_FRAMES = 600
@@ -87,6 +88,20 @@ BUILDINGS = [
         "note": "makes stonework and walls less shameful",
     },
     {
+        "key": "kitchen",
+        "name": "Kitchen",
+        "cost": {"stone": 2, "wood": 2},
+        "passable": True,
+        "note": "stretches fish, meat, and cave snacks into meals",
+    },
+    {
+        "key": "crafts",
+        "name": "Crafts",
+        "cost": {"stone": 3, "wood": 1},
+        "passable": True,
+        "note": "makes trade goods and tiny useless masterpieces",
+    },
+    {
         "key": "stairs",
         "name": "Stairs",
         "cost": {"stone": 3},
@@ -133,6 +148,7 @@ class Job:
     x: int
     y: int
     build: str = ""
+    target: int = -1
     claimed: int = -1
     work: int = 0
 
@@ -141,6 +157,7 @@ class Job:
 
     @classmethod
     def load(cls, data):
+        data.setdefault("target", -1)
         return cls(**data)
 
 
@@ -151,6 +168,9 @@ class Dwarf:
     z: int
     x: int
     y: int
+    role: str = "miner"
+    trait: str = "steady"
+    skills: dict = field(default_factory=dict)
     hp: int = 6
     hunger: float = 10.0
     thirst: float = 10.0
@@ -172,6 +192,9 @@ class Dwarf:
     def load(cls, data):
         data = data.copy()
         data["path"] = [tuple(p) for p in data.get("path", [])]
+        data.setdefault("role", "miner")
+        data.setdefault("trait", "steady")
+        data.setdefault("skills", {})
         return cls(**data)
 
 
@@ -198,6 +221,24 @@ class Enemy:
         return cls(**data)
 
 
+@dataclass
+class Animal:
+    id: int
+    kind: str
+    z: int
+    x: int
+    y: int
+    hp: int = 2
+    step_cd: int = 0
+
+    def save(self):
+        return self.__dict__.copy()
+
+    @classmethod
+    def load(cls, data):
+        return cls(**data)
+
+
 class App:
     def __init__(self):
         pyxel.init(W, H, title="hill fort", fps=30, quit_key=pyxel.KEY_NONE)
@@ -220,11 +261,13 @@ class App:
         self.jobs = []
         self.dwarves = []
         self.enemies = []
+        self.animals = []
         self.next_job = 1
         self.next_enemy = 1
+        self.next_animal = 1
         self.z = 0
-        self.cx, self.cy = 16, 22
-        self.cam_y = 5
+        self.cx, self.cy = 24, 26
+        self.cam_x, self.cam_y = 8, 7
         self.mode = "mine"
         self.build_i = 0
         self.day = 1
@@ -241,47 +284,54 @@ class App:
             "drink": 42,
             "ore": 0,
             "tools": 6,
+            "goods": 0,
         }
         self.messages = []
         self.make_map()
         self.make_dwarves()
+        self.make_animals()
         self.say("Seven dwarves, zero rooms, one optimistic hill.")
         self.say("Start outside. Dig in before anyone gets poetic.")
 
     def make_map(self):
         # Surface: grass with one diggable hill, trees, rocks, pond, and a path.
+        hx, hy = MW // 2, 18
         for y in range(MH):
             for x in range(MW):
                 self.t(0, x, y).kind = "grass"
         for y in range(MH):
             for x in range(MW):
-                dx = (x - 16) / 10.5
-                dy = (y - 15) / 8.0
+                dx = (x - hx) / 13.5
+                dy = (y - hy) / 9.0
                 if dx * dx + dy * dy < 1.0:
                     self.t(0, x, y).kind = "hill"
-        for y in range(23, 32):
-            self.t(0, 16, y).kind = "dirt"
-            if y % 2 == 0 and 17 < MW:
-                self.t(0, 17, y).kind = "dirt"
-        for _ in range(38):
+        for y in range(hy + 9, MH):
+            self.t(0, hx, y).kind = "dirt"
+            if y % 2 == 0 and hx + 1 < MW:
+                self.t(0, hx + 1, y).kind = "dirt"
+        for _ in range(62):
             x, y = self.rng.randrange(MW), self.rng.randrange(MH)
-            if self.t(0, x, y).kind == "grass" and not (12 < x < 20 and y > 18):
+            if self.t(0, x, y).kind == "grass" and not (hx - 4 < x < hx + 5 and y > hy + 8):
                 self.t(0, x, y).kind = "tree"
-        for _ in range(28):
+        for _ in range(44):
             x, y = self.rng.randrange(MW), self.rng.randrange(MH)
             if self.t(0, x, y).kind == "grass":
                 self.t(0, x, y).kind = "rock"
-        for y in range(3, 8):
-            for x in range(3, 8):
-                if (x - 5) ** 2 + (y - 5) ** 2 < 8:
+        for y in range(4, 11):
+            for x in range(4, 12):
+                if (x - 8) ** 2 + (y - 7) ** 2 < 14:
+                    self.t(0, x, y).kind = "river"
+        for y in range(25, 36):
+            for x in range(37, 44):
+                if (x - 40) ** 2 + (y - 30) ** 2 < 12:
                     self.t(0, x, y).kind = "river"
 
         # Middle layer: sealed stone. The player must build stairs into it.
         for x in range(MW):
             for y in range(MH):
                 self.t(1, x, y).kind = "stone"
-        for x in range(10, 23):
-            for y in range(8, 25):
+        for x in range(hx - 10, hx + 11):
+            for y in range(hy - 9, hy + 10):
                 if self.rng.random() < 0.08:
                     self.t(1, x, y).kind = "ore" if self.rng.random() < 0.35 else "stone"
 
@@ -290,20 +340,54 @@ class App:
             for y in range(MH):
                 self.t(2, x, y).kind = "stone"
         for y in range(MH):
-            rx = 21 + (y // 5) % 3
+            rx = 31 + (y // 5) % 4
             for dx in (-1, 0, 1):
                 if 0 <= rx + dx < MW:
                     self.t(2, rx + dx, y).kind = "river"
         for _ in range(65):
-            x, y = self.rng.randrange(4, 28), self.rng.randrange(3, 30)
+            x, y = self.rng.randrange(6, MW - 6), self.rng.randrange(4, MH - 5)
             if self.t(2, x, y).kind == "stone":
                 self.t(2, x, y).kind = "ore"
 
     def make_dwarves(self):
-        starts = [(16, 25), (15, 25), (17, 25), (16, 26),
-                  (15, 26), (17, 26), (16, 27)]
+        starts = [(24, 31), (23, 31), (25, 31), (24, 32),
+                  (23, 32), (25, 32), (24, 33)]
+        roles = ("militia", "militia", "miner", "miner", "woodcutter", "cook", "fisher")
+        traits = ("stout", "watchful", "steady", "quick", "forager", "cheerful", "patient")
         for i, (x, y) in enumerate(starts):
-            self.dwarves.append(Dwarf(i, DWARF_NAMES[i], 0, x, y))
+            role = roles[i % len(roles)]
+            skills = self.base_skills(role)
+            hp = 7 if role == "militia" or traits[i] == "stout" else 6
+            self.dwarves.append(Dwarf(i, DWARF_NAMES[i], 0, x, y,
+                                      role=role, trait=traits[i],
+                                      skills=skills, hp=hp))
+
+    def base_skills(self, role):
+        skills = {"mine": 0, "wood": 0, "build": 0, "fight": 0,
+                  "hunt": 0, "fish": 0, "craft": 0, "cook": 0}
+        if role == "militia":
+            skills["fight"] = 2
+            skills["hunt"] = 1
+        elif role == "miner":
+            skills["mine"] = 2
+            skills["build"] = 1
+        elif role == "woodcutter":
+            skills["wood"] = 2
+            skills["build"] = 1
+        elif role == "cook":
+            skills["cook"] = 2
+            skills["craft"] = 1
+        elif role == "crafter":
+            skills["craft"] = 2
+            skills["build"] = 1
+        elif role == "fisher":
+            skills["fish"] = 2
+            skills["hunt"] = 1
+        return skills
+
+    def make_animals(self):
+        for _ in range(10):
+            self.spawn_animal(self.rng.choice(("deer", "rabbit", "goat")))
 
     def t(self, z, x, y):
         return self.tiles[z][x][y]
@@ -325,14 +409,16 @@ class App:
             "threat": self.threat,
             "comfort": self.comfort,
             "stock_cap": self.stock_cap,
-            "cursor": [self.z, self.cx, self.cy, self.cam_y],
+            "cursor": [self.z, self.cx, self.cy, self.cam_x, self.cam_y],
             "tiles": [[[self.tiles[z][x][y].save() for y in range(MH)]
                        for x in range(MW)] for z in range(LEVELS)],
             "jobs": [j.save() for j in self.jobs],
             "dwarves": [d.save() for d in self.dwarves],
             "enemies": [e.save() for e in self.enemies],
+            "animals": [a.save() for a in self.animals],
             "next_job": self.next_job,
             "next_enemy": self.next_enemy,
+            "next_animal": self.next_animal,
             "messages": self.messages,
         }
         try:
@@ -356,14 +442,21 @@ class App:
         self.threat = data["threat"]
         self.comfort = data.get("comfort", 0)
         self.stock_cap = data.get("stock_cap", 99)
-        self.z, self.cx, self.cy, self.cam_y = data["cursor"]
+        cursor = data["cursor"]
+        if len(cursor) == 4:
+            self.z, self.cx, self.cy, self.cam_y = cursor
+            self.cam_x = max(0, self.cx - VIEW_COLS // 2)
+        else:
+            self.z, self.cx, self.cy, self.cam_x, self.cam_y = cursor
         self.tiles = [[[Tile.load(data["tiles"][z][x][y]) for y in range(MH)]
                        for x in range(MW)] for z in range(LEVELS)]
         self.jobs = [Job.load(j) for j in data["jobs"]]
         self.dwarves = [Dwarf.load(d) for d in data["dwarves"]]
         self.enemies = [Enemy.load(e) for e in data["enemies"]]
+        self.animals = [Animal.load(a) for a in data.get("animals", [])]
         self.next_job = data["next_job"]
         self.next_enemy = data["next_enemy"]
+        self.next_animal = data.get("next_animal", len(self.animals) + 1)
         self.messages = data.get("messages", [])
         self.game_over = False
         self.state = "play"
@@ -431,7 +524,7 @@ class App:
             self.cancel_at_cursor()
         for i, key in enumerate((pyxel.KEY_1, pyxel.KEY_2, pyxel.KEY_3,
                                  pyxel.KEY_4, pyxel.KEY_5, pyxel.KEY_6,
-                                 pyxel.KEY_7)):
+                                 pyxel.KEY_7, pyxel.KEY_8, pyxel.KEY_9)):
             if pyxel.btnp(key):
                 self.build_i = i
                 self.mode = "build"
@@ -443,6 +536,10 @@ class App:
             self.load_game()
 
     def keep_cursor_visible(self):
+        if self.cx < self.cam_x + 3:
+            self.cam_x = max(0, self.cx - 3)
+        if self.cx >= self.cam_x + VIEW_COLS - 3:
+            self.cam_x = min(MW - VIEW_COLS, self.cx - VIEW_COLS + 4)
         if self.cy < self.cam_y + 2:
             self.cam_y = max(0, self.cy - 2)
         if self.cy >= self.cam_y + VIEW_ROWS - 2:
@@ -464,6 +561,20 @@ class App:
 
     def designate(self):
         tile = self.t(self.z, self.cx, self.cy)
+        animal = self.animal_at(self.z, self.cx, self.cy)
+        if animal:
+            self.add_job("hunt", self.z, self.cx, self.cy, target=animal.id)
+            self.say("Hunt marked. %s regrets being visible." % animal.kind)
+            return
+        if tile.kind == "river":
+            if not self.adjacent_passable(self.z, self.cx, self.cy):
+                self.say("Fish from the bank, not the middle.")
+                return
+            if tile.designated != "fish":
+                tile.designated = "fish"
+                self.add_job("fish", self.z, self.cx, self.cy)
+                self.say("Fishing spot marked. Dwarves prepare lies.")
+            return
         if tile.kind == "tree":
             if tile.designated != "chop":
                 tile.designated = "chop"
@@ -487,11 +598,12 @@ class App:
         if len(self.jobs) != before:
             self.say("Canceled the job before it became tradition.")
 
-    def add_job(self, kind, z, x, y, build=""):
+    def add_job(self, kind, z, x, y, build="", target=-1):
         for job in self.jobs:
-            if (job.kind, job.z, job.x, job.y, job.build) == (kind, z, x, y, build):
+            if (job.kind, job.z, job.x, job.y, job.build, job.target) == \
+                    (kind, z, x, y, build, target):
                 return job
-        job = Job(self.next_job, kind, z, x, y, build)
+        job = Job(self.next_job, kind, z, x, y, build, target)
         self.next_job += 1
         self.jobs.append(job)
         return job
@@ -543,6 +655,8 @@ class App:
             self.workshops_tick()
         for dwarf in list(self.dwarves):
             self.update_dwarf(dwarf)
+        for animal in list(self.animals):
+            self.update_animal(animal)
         for enemy in list(self.enemies):
             self.update_enemy(enemy)
         self.check_end()
@@ -583,6 +697,9 @@ class App:
         elif self.day == 6:
             self.spawn_enemy_wave("raider", 3 + self.threat // 3)
             self.say("A small siege forms. It has opinions.")
+        elif self.day > 6 and self.day % 7 == 0:
+            self.spawn_enemy_wave("raider", 2 + self.day // 7 + self.threat // 4)
+            self.say("Another siege arrives. Tradition hardens.")
         elif self.day % 4 == 0:
             score = self.fort_score()
             need = 8 + max(0, len(self.alive_dwarves()) - 7) * 2
@@ -590,6 +707,9 @@ class App:
                 self.add_migrant()
             else:
                 self.say("Migrants inspect the hill and keep walking.")
+        elif self.day % 5 == 0:
+            self.spawn_animal(self.rng.choice(("deer", "rabbit", "goat")))
+            self.say("Fresh tracks cross the grass.")
         elif self.day % 3 == 0:
             self.say(self.rng.choice((
                 "Cave noise below: clink, splash, bad idea.",
@@ -608,6 +728,18 @@ class App:
         if self.has_building("mason") and self.resources["stone"] > 0:
             self.resources["stone"] -= 1
             self.resources["tools"] = min(12, self.resources["tools"] + 1)
+        if self.has_building("kitchen") and self.resources["wood"] > 0:
+            self.resources["wood"] -= 1
+            self.resources["food"] = min(self.stock_cap, self.resources["food"] + 2)
+            self.comfort += 1
+        if self.has_building("crafts"):
+            if self.resources["stone"] > 0:
+                self.resources["stone"] -= 1
+                self.resources["goods"] = min(self.stock_cap, self.resources["goods"] + 1)
+                self.comfort += 1
+            elif self.resources["wood"] > 0:
+                self.resources["wood"] -= 1
+                self.resources["goods"] = min(self.stock_cap, self.resources["goods"] + 1)
         if self.has_building("stockpile"):
             self.stock_cap = 140
 
@@ -631,7 +763,8 @@ class App:
     def fort_score(self):
         beds = self.count_building("bed")
         stock = self.count_building("stockpile")
-        workshops = self.count_building("carpenter") + self.count_building("mason")
+        workshops = self.count_building("carpenter") + self.count_building("mason") + \
+            self.count_building("kitchen") + self.count_building("crafts")
         doors = self.count_building("door")
         walls = self.count_building("wall")
         dug = 0
@@ -640,17 +773,42 @@ class App:
                 for y in range(MH):
                     if self.t(z, x, y).kind == "floor":
                         dug += 1
-        return beds * 2 + stock * 2 + workshops * 3 + doors + walls // 3 + min(4, dug // 10)
+        return beds * 2 + stock * 2 + workshops * 3 + doors + walls // 3 + \
+            self.resources.get("goods", 0) // 2 + min(4, dug // 10)
 
     def add_migrant(self):
         if len(self.alive_dwarves()) >= 11:
             return
         idx = len(self.dwarves)
         d = Dwarf(idx, DWARF_NAMES[idx % len(DWARF_NAMES)] + str(idx // len(DWARF_NAMES) + 1),
-                  0, 16, 31, mood=70)
+                  0, MW // 2, MH - 2, role="crafter", trait=self.rng.choice(
+                      ("quick", "cheerful", "patient", "forager")),
+                  skills=self.base_skills("crafter"), mood=70)
         self.dwarves.append(d)
         self.resources["food"] += 4
         self.say("%s migrates in, carrying optimism and one biscuit." % d.name)
+
+    def spawn_animal(self, kind):
+        for _ in range(80):
+            x, y = self.rng.randrange(MW), self.rng.randrange(MH)
+            if self.t(0, x, y).kind in ("grass", "dirt") and \
+                    not self.occupied_by_dwarf(0, x, y):
+                hp = 1 if kind == "rabbit" else 2 if kind == "deer" else 3
+                self.animals.append(Animal(self.next_animal, kind, 0, x, y, hp))
+                self.next_animal += 1
+                return
+
+    def animal_by_id(self, aid):
+        for animal in self.animals:
+            if animal.id == aid:
+                return animal
+        return None
+
+    def animal_at(self, z, x, y):
+        for animal in self.animals:
+            if animal.hp > 0 and (animal.z, animal.x, animal.y) == (z, x, y):
+                return animal
+        return None
 
     def spawn_enemy_wave(self, kind, count):
         for _ in range(count):
@@ -759,12 +917,14 @@ class App:
     def attack_enemy(self, d, enemy):
         if pyxel.frame_count % 14 != d.id % 14:
             return
-        dmg = 1 + (1 if self.resources["tools"] > 0 and self.rng.random() < 0.35 else 0)
+        dmg = 1 + d.skills.get("fight", 0) // 2 + \
+            (1 if self.resources["tools"] > 0 and self.rng.random() < 0.35 else 0)
         enemy.hp -= dmg
         d.tired = clamp(d.tired + 1.8, 0, 130)
         if enemy.hp <= 0:
             self.say("%s solves a %s problem." % (d.name, enemy.kind))
             self.enemies.remove(enemy)
+            self.gain_skill(d, "fight")
             d.task = "idle"
             d.target = -1
 
@@ -778,7 +938,9 @@ class App:
                 continue
             path = self.find_path((d.z, d.x, d.y), set(goals))
             if path is not None:
-                priority = {"dig": 0, "chop": 1, "build": 2}.get(job.kind, 5)
+                priority = {"fight": 0, "dig": 1, "chop": 2, "fish": 2,
+                            "hunt": 2, "build": 3}.get(job.kind, 5)
+                priority -= self.role_fit(d, job)
                 candidates.append((priority, len(path), job.id, path))
         if not candidates:
             return False
@@ -809,7 +971,9 @@ class App:
             return
         job.work += 1
         d.tired = clamp(d.tired + 0.035, 0, 130)
-        need = 42 if job.kind == "build" else 32 if job.kind == "dig" else 28
+        need = 42 if job.kind == "build" else 34 if job.kind == "fish" \
+            else 32 if job.kind == "dig" else 30 if job.kind == "hunt" else 28
+        job.work += self.work_bonus(d, job)
         if job.work >= need:
             self.complete_job(d, job)
 
@@ -827,30 +991,100 @@ class App:
                 self.say("%s finds ore. The deep notices." % d.name)
             else:
                 self.say("%s mines stone." % d.name)
+            self.gain_skill(d, "mine")
         elif job.kind == "chop":
             tile.kind = "grass"
             tile.designated = ""
             self.resources["wood"] = min(self.stock_cap, self.resources["wood"] + 3)
             self.say("%s converts tree into future furniture." % d.name)
+            self.gain_skill(d, "wood")
         elif job.kind == "build":
             if job.build == "stairs":
                 self.place_stairs(job.x, job.y, min(job.z, LEVELS - 2))
             else:
                 tile.build = job.build
             self.say("%s builds %s." % (d.name, BUILD_BY_KEY[job.build]["name"]))
+            self.gain_skill(d, "build")
+        elif job.kind == "fish":
+            tile.designated = ""
+            catch = 2 + d.skills.get("fish", 0) // 2
+            self.resources["food"] = min(self.stock_cap, self.resources["food"] + catch)
+            self.say("%s catches fish. The fish had plans." % d.name)
+            self.gain_skill(d, "fish")
+        elif job.kind == "hunt":
+            animal = self.animal_by_id(job.target)
+            if animal and animal in self.animals:
+                self.animals.remove(animal)
+                meat = {"rabbit": 2, "deer": 5, "goat": 4}.get(animal.kind, 3)
+                self.resources["food"] = min(self.stock_cap, self.resources["food"] + meat)
+                self.resources["goods"] = min(self.stock_cap, self.resources["goods"] + (1 if meat >= 4 else 0))
+                self.say("%s hunts a %s." % (d.name, animal.kind))
+            self.gain_skill(d, "hunt")
         self.jobs.remove(job)
         d.job_id = -1
         d.task = "idle"
         d.work = 0
 
+    def role_fit(self, d, job):
+        if d.role == "miner" and job.kind == "dig":
+            return 1
+        if d.role == "woodcutter" and job.kind == "chop":
+            return 1
+        if d.role == "fisher" and job.kind == "fish":
+            return 1
+        if d.role == "militia" and job.kind == "hunt":
+            return 1
+        if d.role in ("crafter", "cook") and job.kind == "build":
+            return 1
+        return 0
+
+    def skill_for_job(self, job):
+        if job.kind == "dig":
+            return "mine"
+        if job.kind == "chop":
+            return "wood"
+        if job.kind == "fish":
+            return "fish"
+        if job.kind == "hunt":
+            return "hunt"
+        if job.kind == "build":
+            if job.build == "kitchen":
+                return "cook"
+            if job.build in ("crafts", "carpenter", "mason"):
+                return "craft"
+            return "build"
+        return "build"
+
+    def work_bonus(self, d, job):
+        skill = d.skills.get(self.skill_for_job(job), 0)
+        trait = 0.25 if d.trait == "quick" else 0.0
+        return skill * 0.18 + trait
+
+    def gain_skill(self, d, skill):
+        if self.rng.random() < 0.28:
+            d.skills[skill] = min(5, d.skills.get(skill, 0) + 1)
+
     def can_work_job(self, d, job):
         if job.kind in ("dig", "chop"):
             return abs(d.x - job.x) + abs(d.y - job.y) == 1 and d.z == job.z
+        if job.kind == "fish":
+            return abs(d.x - job.x) + abs(d.y - job.y) == 1 and d.z == job.z
+        if job.kind == "hunt":
+            animal = self.animal_by_id(job.target)
+            return animal is not None and d.z == animal.z and \
+                abs(d.x - animal.x) + abs(d.y - animal.y) == 1
         return (d.z, d.x, d.y) == (job.z, job.x, job.y)
 
     def job_goals(self, job):
         if job.kind in ("dig", "chop"):
             return self.adjacent_passable(job.z, job.x, job.y)
+        if job.kind == "fish":
+            return self.adjacent_passable(job.z, job.x, job.y)
+        if job.kind == "hunt":
+            animal = self.animal_by_id(job.target)
+            if animal:
+                return self.adjacent_passable(animal.z, animal.x, animal.y)
+            return []
         if job.kind == "build" and self.passable(job.z, job.x, job.y):
             return [(job.z, job.x, job.y)]
         return []
@@ -897,6 +1131,33 @@ class App:
             d.task = "idle"
             self.follow_path(d)
 
+    def update_animal(self, animal):
+        if animal.hp <= 0:
+            if animal in self.animals:
+                self.animals.remove(animal)
+            return
+        if any(j.kind == "hunt" and j.target == animal.id for j in self.jobs):
+            return
+        if animal.step_cd > 0:
+            animal.step_cd -= 1
+            return
+        if self.rng.random() > 0.28:
+            animal.step_cd = 20
+            return
+        opts = []
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nx, ny = animal.x + dx, animal.y + dy
+            if not self.in_bounds(nx, ny):
+                continue
+            if self.t(0, nx, ny).kind not in ("grass", "dirt", "floor"):
+                continue
+            if self.occupied_by_dwarf(0, nx, ny) or self.animal_at(0, nx, ny):
+                continue
+            opts.append((nx, ny))
+        if opts:
+            animal.x, animal.y = self.rng.choice(opts)
+        animal.step_cd = 24 if animal.kind == "deer" else 18
+
     def occupied_by_dwarf(self, z, x, y):
         return any(d.hp > 0 and (d.z, d.x, d.y) == (z, x, y) for d in self.dwarves)
 
@@ -937,9 +1198,6 @@ class App:
         if not self.alive_dwarves():
             self.game_over = True
             self.end_text = "The hill wins by unanimous silence."
-        if self.day >= 14 and not self.game_over:
-            self.game_over = True
-            self.end_text = "The fort survives long enough to need a tax office."
 
     # -- pathfinding ----------------------------------------------------
     def neighbors(self, pos):
@@ -990,7 +1248,7 @@ class App:
         nz, nx, ny = d.path.pop(0)
         if self.passable(nz, nx, ny):
             d.z, d.x, d.y = nz, nx, ny
-            d.step_cd = 7 if d.mood > 30 else 10
+            d.step_cd = (5 if d.trait == "quick" else 7) if d.mood > 30 else 10
 
     # -- drawing --------------------------------------------------------
     def draw(self):
@@ -1023,7 +1281,7 @@ class App:
         self.big_text("HILL FORT", 57, 76, 2, 7)
         pyxel.text(67, 103, "a tiny fortress roguelite", 6)
         pyxel.text(58, 119, "ENTER starts a new expedition", 5)
-        pyxel.text(58, 132, "D dig  B build  Q/E depth", 4)
+        pyxel.text(58, 132, "D jobs  B build  Q/E depth", 4)
         pyxel.text(5, 248, "pyxel arcade", 4)
 
     def big_text(self, text, x, y, scale, col):
@@ -1048,27 +1306,40 @@ class App:
             x += (len(glyph[0]) + 1) * scale
 
     def draw_map(self):
+        self.cam_x = max(0, min(MW - VIEW_COLS, self.cam_x))
         self.cam_y = max(0, min(MH - VIEW_ROWS, self.cam_y))
         pyxel.cls(0)
         for sy in range(VIEW_ROWS):
             y = sy + self.cam_y
-            for x in range(MW):
-                self.draw_tile(x * TILE, sy * TILE, self.z, x, y)
+            for sx in range(VIEW_COLS):
+                x = sx + self.cam_x
+                self.draw_tile(sx * TILE, sy * TILE, self.z, x, y)
         for job in self.jobs:
-            if job.z == self.z and self.cam_y <= job.y < self.cam_y + VIEW_ROWS:
-                px, py = job.x * TILE, (job.y - self.cam_y) * TILE
+            if job.z == self.z and self.visible(job.x, job.y):
+                px, py = (job.x - self.cam_x) * TILE, (job.y - self.cam_y) * TILE
                 pyxel.pset(px + 3, py + 3, 7)
                 pyxel.pset(px + 4, py + 4, 7)
+        for animal in self.animals:
+            if animal.z == self.z and self.visible(animal.x, animal.y):
+                self.draw_animal((animal.x - self.cam_x) * TILE,
+                                 (animal.y - self.cam_y) * TILE, animal.kind)
         for e in self.enemies:
-            if e.z == self.z and self.cam_y <= e.y < self.cam_y + VIEW_ROWS:
-                self.draw_enemy(e.x * TILE, (e.y - self.cam_y) * TILE, e.kind)
+            if e.z == self.z and self.visible(e.x, e.y):
+                self.draw_enemy((e.x - self.cam_x) * TILE,
+                                (e.y - self.cam_y) * TILE, e.kind)
         for d in self.dwarves:
-            if d.hp > 0 and d.z == self.z and self.cam_y <= d.y < self.cam_y + VIEW_ROWS:
-                self.draw_dwarf(d.x * TILE, (d.y - self.cam_y) * TILE, d)
-        if self.cam_y <= self.cy < self.cam_y + VIEW_ROWS:
-            pyxel.rectb(self.cx * TILE, (self.cy - self.cam_y) * TILE, TILE, TILE, 6)
-            pyxel.rectb(self.cx * TILE + 1, (self.cy - self.cam_y) * TILE + 1,
+            if d.hp > 0 and d.z == self.z and self.visible(d.x, d.y):
+                self.draw_dwarf((d.x - self.cam_x) * TILE,
+                                (d.y - self.cam_y) * TILE, d)
+        if self.visible(self.cx, self.cy):
+            px, py = (self.cx - self.cam_x) * TILE, (self.cy - self.cam_y) * TILE
+            pyxel.rectb(px, py, TILE, TILE, 6)
+            pyxel.rectb(px + 1, py + 1,
                         TILE - 2, TILE - 2, 0 if pyxel.frame_count % 16 < 8 else 7)
+
+    def visible(self, x, y):
+        return self.cam_x <= x < self.cam_x + VIEW_COLS and \
+            self.cam_y <= y < self.cam_y + VIEW_ROWS
 
     def draw_tile(self, px, py, z, x, y):
         tile = self.t(z, x, y)
@@ -1144,19 +1415,56 @@ class App:
             pyxel.rect(px + 1, py + 5, 6, 2, 4)
             pyxel.rect(px + 2, py + 2, 4, 3, 5)
             pyxel.pset(px + 6, py + 2, 7)
+        elif build == "kitchen":
+            pyxel.rect(px + 1, py + 4, 6, 3, 8)
+            pyxel.rect(px + 2, py + 2, 4, 3, 14)
+            pyxel.pset(px + 4, py + 1, 7)
+        elif build == "crafts":
+            pyxel.rect(px + 1, py + 5, 6, 2, 9)
+            pyxel.rect(px + 2, py + 3, 4, 2, 15)
+            pyxel.pset(px + 5, py + 2, 7)
         elif build == "stairs":
             pyxel.rect(px + 1, py + 1, 6, 6, 3)
             for i in range(3):
                 pyxel.line(px + 2, py + 2 + i * 2, px + 6, py + 2 + i * 2, 5)
 
     def draw_dwarf(self, px, py, d):
+        body = {"militia": 14, "miner": 4, "woodcutter": 10, "cook": 6,
+                "crafter": 15, "fisher": 13}.get(d.role, 8)
         pyxel.rect(px + 2, py + 1, 4, 2, 6)
-        pyxel.rect(px + 2, py + 3, 4, 3, 8)
+        if d.role == "militia":
+            pyxel.pset(px + 1, py + 1, 6)
+            pyxel.pset(px + 6, py + 1, 6)
+            pyxel.pset(px + 0, py + 0, 5)
+            pyxel.pset(px + 7, py + 0, 5)
+        pyxel.rect(px + 2, py + 3, 4, 3, body)
         pyxel.rect(px + 1, py + 5, 6, 2, 9)
         pyxel.pset(px + 3, py + 2, 0)
         pyxel.pset(px + 5, py + 2, 0)
+        if d.role == "militia":
+            pyxel.line(px + 6, py + 3, px + 7, py + 6, 5)
+        elif d.role == "miner":
+            pyxel.pset(px + 6, py + 4, 5)
+        elif d.role == "fisher":
+            pyxel.line(px + 6, py + 3, px + 7, py + 1, 13)
         if d.mood < 35:
             pyxel.pset(px + 4, py, 14)
+
+    def draw_animal(self, px, py, kind):
+        if kind == "rabbit":
+            pyxel.rect(px + 2, py + 4, 4, 2, 5)
+            pyxel.pset(px + 3, py + 2, 5)
+            pyxel.pset(px + 5, py + 2, 5)
+        elif kind == "goat":
+            pyxel.rect(px + 1, py + 3, 6, 3, 6)
+            pyxel.pset(px + 2, py + 2, 5)
+            pyxel.pset(px + 5, py + 2, 5)
+            pyxel.pset(px + 6, py + 3, 0)
+        else:
+            pyxel.rect(px + 1, py + 3, 6, 3, 8)
+            pyxel.pset(px + 2, py + 2, 9)
+            pyxel.pset(px + 5, py + 2, 9)
+            pyxel.pset(px + 6, py + 3, 0)
 
     def draw_enemy(self, px, py, kind):
         col = 14 if kind == "raider" else 15
@@ -1172,22 +1480,47 @@ class App:
         res = self.resources
         pyxel.text(4, HUD_Y + 4, "HILL FORT  z%d %s  day %d" %
                    (self.z, LEVEL_NAMES[self.z], self.day), 7)
-        pyxel.text(4, HUD_Y + 13, "D%d/%d W%d S%d F%d A%d O%d T%d" %
+        self.draw_status_pips(176, HUD_Y + 4)
+        pyxel.text(4, HUD_Y + 13, "D%d/%d W%d S%d F%d A%d O%d T%d G%d" %
                    (alive, len(self.dwarves), res["wood"], res["stone"],
-                    res["food"], res["drink"], res["ore"], res["tools"]), 6)
-        pyxel.text(4, HUD_Y + 22, "mode %-7s  jobs %d  threat %d" %
-                   (self.mode, len(self.jobs), self.threat), 5)
+                    res["food"], res["drink"], res["ore"], res["tools"],
+                    res.get("goods", 0)), 6)
+        pyxel.text(4, HUD_Y + 22, "mode %-7s jobs %d threat %d score %d" %
+                   (self.mode, len(self.jobs), self.threat, self.fort_score()), 5)
         pyxel.text(4, HUD_Y + 31, self.tile_info(), 13)
         if self.messages:
             pyxel.text(4, HUD_Y + 42, trim(self.messages[-1], 61), 6)
         pyxel.text(4, HUD_Y + 52, "D dig/chop  B build  Esc back  Q/E z  S save", 4)
+
+    def draw_status_pips(self, x, y):
+        for i, d in enumerate(self.dwarves[:11]):
+            px = x + i * 7
+            role_col = {"militia": 14, "miner": 4, "woodcutter": 10,
+                        "cook": 6, "crafter": 15, "fisher": 13}.get(d.role, 8)
+            if d.hp <= 0:
+                col = 2
+            elif d.hunger > 90 or d.thirst > 90:
+                col = 14
+            elif d.tired > 90:
+                col = 7
+            elif d.task == "rest":
+                col = 13
+            else:
+                col = role_col
+            pyxel.rect(px, y, 5, 5, col)
+            if d.role == "militia":
+                pyxel.pset(px + 2, y - 1, 6)
 
     def tile_info(self):
         tile = self.t(self.z, self.cx, self.cy)
         here = [d for d in self.dwarves if d.hp > 0 and (d.z, d.x, d.y) == (self.z, self.cx, self.cy)]
         if here:
             d = here[0]
-            return "%s hp%d mood%d task %s" % (d.name, d.hp, int(d.mood), d.task)
+            return "%s %s hp%d mood%d task %s" % (d.name, d.role[:4], d.hp,
+                                                  int(d.mood), d.task)
+        animal = self.animal_at(self.z, self.cx, self.cy)
+        if animal:
+            return "%02d,%02d %s animal  D hunt" % (self.cx, self.cy, animal.kind)
         text = "%02d,%02d %s" % (self.cx, self.cy, tile.kind)
         if tile.build:
             text += " " + BUILD_BY_KEY[tile.build]["name"]
@@ -1199,14 +1532,14 @@ class App:
         x, y, w, h = 132, 8, 120, 176
         self.panel(x, y, w, h, "BUILD")
         for i, b in enumerate(BUILDINGS):
-            yy = y + 16 + i * 14
+            yy = y + 16 + i * 11
             if i == self.build_i:
-                pyxel.rect(x + 4, yy - 2, w - 8, 11, 7)
+                pyxel.rect(x + 4, yy - 1, w - 8, 9, 7)
             col = 0 if i == self.build_i else 6
             pyxel.text(x + 8, yy, "%d %s" % (i + 1, b["name"]), col)
             pyxel.text(x + 78, yy, self.cost_text(b["key"]), 0 if i == self.build_i else 4)
         b = BUILDINGS[self.build_i]
-        note_y = y + 119
+        note_y = y + 121
         for j, line in enumerate(self.wrap_note(b["note"], 25, 3)):
             pyxel.text(x + 8, note_y + j * 8, line, 5)
         pyxel.text(x + 8, y + h - 13, "ENTER place", 7 if self.can_pay(b["key"]) else 14)
@@ -1241,14 +1574,19 @@ class App:
         here_d = [d for d in self.dwarves if d.hp > 0 and (d.z, d.x, d.y) == (self.z, self.cx, self.cy)]
         if here_d:
             d = here_d[0]
+            best = sorted(d.skills.items(), key=lambda kv: (-kv[1], kv[0]))[:3]
             lines += [
                 "%s hp %d" % (d.name, d.hp),
+                "role %s" % d.role,
+                "trait %s" % d.trait,
                 "hunger %d thirst %d" % (d.hunger, d.thirst),
                 "tired %d mood %d" % (d.tired, d.mood),
                 "task " + d.task,
+                "skills " + " ".join("%s%d" % (k[:2], v) for k, v in best),
             ]
         else:
-            lines += ["no dwarf here"]
+            animal = self.animal_at(self.z, self.cx, self.cy)
+            lines += ["animal " + animal.kind if animal else "no dwarf here"]
         for i, line in enumerate(lines[:11]):
             pyxel.text(x + 7, y + 16 + i * 9, trim(str(line), 26), 6)
 
@@ -1268,13 +1606,14 @@ class App:
         x, y, w, h = 18, 24, 220, 138
         self.panel(x, y, w, h, "FIELD MANUAL")
         rows = (
-            "D marks stone/hill to mine or trees to chop.",
-            "B opens build mode. 1-7 choose objects.",
+            "D marks stone/hill, trees, animals, or water.",
+            "B opens build mode. 1-9 choose objects.",
             "Dwarves pick jobs from the shared queue.",
-            "Beds reduce tiredness. Workshops add comfort/tools.",
+            "Beds reduce tiredness. Workshops cook/craft/tools.",
             "Q/E changes z-level; stairs connect levels.",
-            "Ore and deep digging raise threat.",
+            "Ore and deep digging raise endless threat.",
             "Raiders path toward food and nearby dwarves.",
+            "Role pips show needs: red hungry, yellow tired.",
             "R restarts. S/L writes/reads hill_fort_save.json.",
             "Esc closes menus. H also closes this manual.",
         )
