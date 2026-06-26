@@ -7,7 +7,8 @@ Controls:  arrows move cursor           Q/E switch z-level
            D designate dig/chop          B build mode
            1-7 pick building             Enter place building
            I inspect                     J job list
-           X cancel designation/job      S/L save/load JSON
+           Esc closes menus              X cancel designation/job
+           S/L save/load JSON
            R new fort                    H help
 
 Study: compact colony-sim state, 32x32x3 maps, shared job queues,
@@ -222,7 +223,7 @@ class App:
         self.next_job = 1
         self.next_enemy = 1
         self.z = 0
-        self.cx, self.cy = 16, 17
+        self.cx, self.cy = 16, 22
         self.cam_y = 5
         self.mode = "mine"
         self.build_i = 0
@@ -236,16 +237,16 @@ class App:
         self.resources = {
             "wood": 12,
             "stone": 0,
-            "food": 42,
-            "drink": 34,
+            "food": 49,
+            "drink": 42,
             "ore": 0,
             "tools": 6,
         }
         self.messages = []
         self.make_map()
         self.make_dwarves()
-        self.say("Seven barrels, six fools, one hill.")
-        self.say("Dig rooms. Build beds. Expect complaints.")
+        self.say("Seven dwarves, zero rooms, one optimistic hill.")
+        self.say("Start outside. Dig in before anyone gets poetic.")
 
     def make_map(self):
         # Surface: grass with one diggable hill, trees, rocks, pond, and a path.
@@ -258,18 +259,10 @@ class App:
                 dy = (y - 15) / 8.0
                 if dx * dx + dy * dy < 1.0:
                     self.t(0, x, y).kind = "hill"
-        for y in range(18, 32):
+        for y in range(23, 32):
             self.t(0, 16, y).kind = "dirt"
             if y % 2 == 0 and 17 < MW:
                 self.t(0, 17, y).kind = "dirt"
-        for x in range(12, 21):
-            for y in range(13, 18):
-                if (x - 16) ** 2 + (y - 15) ** 2 <= 13:
-                    self.t(0, x, y).kind = "floor"
-        for y in range(15, 23):
-            self.t(0, 16, y).kind = "floor"
-        for x, y in ((16, 15), (16, 16), (15, 16), (17, 16)):
-            self.t(0, x, y).kind = "floor"
         for _ in range(38):
             x, y = self.rng.randrange(MW), self.rng.randrange(MH)
             if self.t(0, x, y).kind == "grass" and not (12 < x < 20 and y > 18):
@@ -283,27 +276,19 @@ class App:
                 if (x - 5) ** 2 + (y - 5) ** 2 < 8:
                     self.t(0, x, y).kind = "river"
 
-        # Middle layer: rough starting room plus stone waiting to be mined.
+        # Middle layer: sealed stone. The player must build stairs into it.
         for x in range(MW):
             for y in range(MH):
                 self.t(1, x, y).kind = "stone"
-        for x in range(12, 21):
-            for y in range(12, 19):
-                self.t(1, x, y).kind = "floor"
-        for y in range(18, 25):
-            self.t(1, 16, y).kind = "floor"
         for x in range(10, 23):
             for y in range(8, 25):
                 if self.rng.random() < 0.08:
                     self.t(1, x, y).kind = "ore" if self.rng.random() < 0.35 else "stone"
 
-        # Deep layer: river and better ore, but events get meaner down here.
+        # Deep layer: sealed river and better ore, but events get meaner here.
         for x in range(MW):
             for y in range(MH):
                 self.t(2, x, y).kind = "stone"
-        for x in range(13, 20):
-            for y in range(22, 28):
-                self.t(2, x, y).kind = "floor"
         for y in range(MH):
             rx = 21 + (y // 5) % 3
             for dx in (-1, 0, 1):
@@ -314,15 +299,9 @@ class App:
             if self.t(2, x, y).kind == "stone":
                 self.t(2, x, y).kind = "ore"
 
-        self.place_stairs(16, 15, 0)
-        self.place_stairs(16, 24, 1)
-        self.t(1, 16, 24).kind = "floor"
-        self.t(2, 16, 24).kind = "floor"
-        self.t(0, 14, 16).build = "stockpile"
-        self.t(0, 18, 16).build = "door"
-
     def make_dwarves(self):
-        starts = [(16, 20), (15, 19), (17, 19), (15, 18), (17, 18), (16, 17)]
+        starts = [(16, 25), (15, 25), (17, 25), (16, 26),
+                  (15, 26), (17, 26), (16, 27)]
         for i, (x, y) in enumerate(starts):
             self.dwarves.append(Dwarf(i, DWARF_NAMES[i], 0, x, y))
 
@@ -409,6 +388,9 @@ class App:
         self.update_sim()
 
     def update_input(self):
+        if pyxel.btnp(pyxel.KEY_ESCAPE) and self.mode != "mine":
+            self.mode = "mine"
+            return
         moved = False
         if pyxel.btnp(pyxel.KEY_LEFT, 10, 3):
             self.cx = max(0, self.cx - 1)
@@ -441,8 +423,7 @@ class App:
             self.mode = "jobs"
         if pyxel.btnp(pyxel.KEY_H):
             self.mode = "help"
-        if self.mode == "help" and (
-                pyxel.btnp(pyxel.KEY_ESCAPE) or pyxel.btnp(pyxel.KEY_H)):
+        if self.mode == "help" and pyxel.btnp(pyxel.KEY_H):
             self.mode = "mine"
         if pyxel.btnp(pyxel.KEY_D):
             self.designate()
@@ -602,8 +583,13 @@ class App:
         elif self.day == 6:
             self.spawn_enemy_wave("raider", 3 + self.threat // 3)
             self.say("A small siege forms. It has opinions.")
-        elif self.day % 4 == 0 and self.rng.random() < 0.45:
-            self.add_migrant()
+        elif self.day % 4 == 0:
+            score = self.fort_score()
+            need = 8 + max(0, len(self.alive_dwarves()) - 7) * 2
+            if score >= need and not self.enemies:
+                self.add_migrant()
+            else:
+                self.say("Migrants inspect the hill and keep walking.")
         elif self.day % 3 == 0:
             self.say(self.rng.choice((
                 "Cave noise below: clink, splash, bad idea.",
@@ -633,8 +619,31 @@ class App:
                         return True
         return False
 
+    def count_building(self, key):
+        n = 0
+        for z in range(LEVELS):
+            for x in range(MW):
+                for y in range(MH):
+                    if self.t(z, x, y).build == key:
+                        n += 1
+        return n
+
+    def fort_score(self):
+        beds = self.count_building("bed")
+        stock = self.count_building("stockpile")
+        workshops = self.count_building("carpenter") + self.count_building("mason")
+        doors = self.count_building("door")
+        walls = self.count_building("wall")
+        dug = 0
+        for z in range(LEVELS):
+            for x in range(MW):
+                for y in range(MH):
+                    if self.t(z, x, y).kind == "floor":
+                        dug += 1
+        return beds * 2 + stock * 2 + workshops * 3 + doors + walls // 3 + min(4, dug // 10)
+
     def add_migrant(self):
-        if len(self.alive_dwarves()) >= 9:
+        if len(self.alive_dwarves()) >= 11:
             return
         idx = len(self.dwarves)
         d = Dwarf(idx, DWARF_NAMES[idx % len(DWARF_NAMES)] + str(idx // len(DWARF_NAMES) + 1),
@@ -1039,6 +1048,7 @@ class App:
             x += (len(glyph[0]) + 1) * scale
 
     def draw_map(self):
+        self.cam_y = max(0, min(MH - VIEW_ROWS, self.cam_y))
         pyxel.cls(0)
         for sy in range(VIEW_ROWS):
             y = sy + self.cam_y
@@ -1170,7 +1180,7 @@ class App:
         pyxel.text(4, HUD_Y + 31, self.tile_info(), 13)
         if self.messages:
             pyxel.text(4, HUD_Y + 42, trim(self.messages[-1], 61), 6)
-        pyxel.text(4, HUD_Y + 52, "D dig/chop  B build  Q/E z  I inspect  S save", 4)
+        pyxel.text(4, HUD_Y + 52, "D dig/chop  B build  Esc back  Q/E z  S save", 4)
 
     def tile_info(self):
         tile = self.t(self.z, self.cx, self.cy)
@@ -1266,7 +1276,7 @@ class App:
             "Ore and deep digging raise threat.",
             "Raiders path toward food and nearby dwarves.",
             "R restarts. S/L writes/reads hill_fort_save.json.",
-            "H closes this very official manual.",
+            "Esc closes menus. H also closes this manual.",
         )
         for i, row in enumerate(rows):
             pyxel.text(x + 8, y + 18 + i * 11, row, 6)
