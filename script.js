@@ -5,6 +5,13 @@
 var LAUNCHER = 'https://kitao.github.io/pyxel/web/launcher/?run=alexkorol/pyxel-arcade/master/demos/';
 var games = [
     {
+        title: 'Noita Demake',
+        description: 'A pocket wand-and-powder cave crawl: pixel liquids, fire, toxic sludge, gold, procedural biomes, enemies, spell slots, wand stats, flask pouring, Holy Mountain shops, and a final Sampo shard escape. A/D move, W levitates, mouse aims, click/Z casts, F pours, Tab edits wands.',
+        image: 'demos/noita_demake.png',
+        demoUrl: LAUNCHER + 'noita_demake',
+        codeUrl: 'https://github.com/alexkorol/pyxel-arcade/blob/master/demos/noita_demake.py',
+    },
+    {
         title: 'Hill Fort',
         description: 'A tiny fortress roguelite: start outside, dig into a hill, manage civilian and militia dwarves, hunt, fish, cook, craft, build workshops and stairs, and survive endless escalating raids. Arrows move, D designates, B builds, Q/E changes depth.',
         image: 'demos/hill_fort.png',
