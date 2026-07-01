@@ -1,6 +1,6 @@
 # Pyxel Arcade — Learning Brief
 
-Nine small Python programs, each built around one idea worth stealing. This brief tells you how to run them, what to look for inside each one, and graded exercises to make the code yours.
+Sixteen small Python programs. Ten are single-idea generative toys, each built around one technique worth stealing; five are larger games that combine those techniques into something you can lose an evening to; one (`mycelium_1.py`) is the rough prototype the others grew out of, kept for contrast. This brief tells you how to run them, what to look for inside each one, and graded exercises to make the code yours. The ten toys get a section apiece below; the five games get a shorter tour after them.
 
 ## Running the demos
 
@@ -10,7 +10,7 @@ python demos/koi_pond.py        # any demo runs directly
 pyxel run demos/koi_pond.py     # equivalent, via the pyxel launcher
 ```
 
-To publish on the web: paste a file into https://www.pyxelstudio.net and save, or package locally with `pyxel package demos demos/koi_pond.py` then `pyxel app2html` to get a single shareable HTML file. After you publish each demo, paste its pyxelstudio URL into `script.js` (the new entries ship with `demoUrl: '#'`) and re-shoot the PNG thumbnails referenced there.
+The arcade page (`index.html` + `script.js`) already lists every demo, linking each to the Pyxel Web Launcher, which runs the `.py` straight from this GitHub repo — so a pushed change is playable immediately, no separate publish step. If you'd rather host a self-contained copy, package locally with `pyxel package demos demos/koi_pond.py` then `pyxel app2html` for a single shareable HTML file, or paste a file into https://www.pyxelstudio.net. Either way, re-shoot the PNG thumbnails in `demos/` when a demo's look changes (`python demos/<name>.py --screenshot` where a demo supports it, e.g. `noita_demake`).
 
 Every file ends with:
 
@@ -58,7 +58,7 @@ That one-liner appears in `mycelium_garden`, `physarum`, and `koi_pond`. Derive 
 self.ripples = [r for r in self.ripples if r.alive]
 ```
 
-(The original `mycelium_1.py` mutated a list while iterating it — a classic Python bug. Compare it with `mycelium_garden.py` to see the fix.)
+(`mycelium_1.py` is the prototype the rest grew from; its first draft `remove()`d tips *while iterating* the same list — a classic Python bug that silently skips elements. It now builds fresh `survivors`/`babies` lists each step instead, the same shape as the one-liner above. `git log -p demos/mycelium_1.py` shows the before/after if you want to see the bug in the wild.)
 
 **Flat bytearray grids.** `powder_box` and `physarum` store the world as one `bytearray(W * H)` indexed by `x + y * W` instead of a list of lists. It's faster, cache-friendly, and copying is one call. The trade: you must do the index math yourself.
 
@@ -81,10 +81,10 @@ Tips smell the nearest nutrient and ease toward it with the signed-angle trick. 
 3. Make spores drift on a slight global "wind" vector that slowly rotates.
 
 ### powder_box.py — cellular automata, two-pass scanning
-Each cell is a byte in a flat grid. Fallers (sand, water) are scanned bottom-up so a grain falls once per frame; risers (fire, smoke) scan top-down for the same reason. Only cells that changed get redrawn (dirty-cell rendering).
-1. Add `6 = oil`: floats on water (lighter), burns when touching fire.
+Each cell is a byte in a flat grid. Fallers (sand, water, oil) are scanned bottom-up so a grain falls once per frame; risers (fire, smoke, oil) scan top-down for the same reason. Oil is the demo's showpiece of the two-pass idea: it falls through air, refuses to sink through water, and *floats up* through it — three behaviors that only stay consistent because each pass moves a cell at most once. Only cells that changed get redrawn (dirty-cell rendering).
+1. Oil (key `6`) is built in — read `flow`, `float_up`, and `burn` together and explain why the upward step lives in the riser pass, not the faller pass. Then add `7 = seed`: falls like sand, but when it rests on wet sand it turns to plant and grows upward one cell per second.
 2. Known flaw to fix: water can sidestep twice in one frame because sideways moves can re-enter the scan. Add a `moved` bitarray that marks cells already updated this frame and skip them.
-3. Add `7 = seed`: falls like sand, but when resting on wet sand it converts to plant and grows upward one cell per second.
+3. Give oil a slow evaporation-into-smoke chance when it sits next to fire but never catches, so a slick doesn't pool forever.
 
 ### terrarium.py — state machines, day/night, layered scenes
 Each pip runs a tiny state machine (`roam → seek → eat → lay egg`), with species-specific movement (trot / hop / float). A 1800-frame clock drives dusk, sleep, and firefly glow. Read `draw()` top to bottom and notice it's literally back-to-front scene layers.
@@ -140,6 +140,25 @@ Each koi is 9 spine joints; the head steers (signed-angle trick again), every ot
 2. Add a food pellet (right-click) that koi race to; first one there eats it and grows a segment.
 3. Spawn a fry (3-segment koi) when two koi heads touch while both are near a fresh ripple.
 
+## The five games
+
+These are bigger — hundreds of lines, multiple screens, a title and an end state — but every one is the toy techniques above wearing a coat. Read a toy first, then find the same trick load-bearing inside a game.
+
+### hill_fort.py — a fortress colony sim
+A 48×40×3 tile world, a shared job queue, and dwarves that path to work they choose themselves. The reusable parts: a compact grid-BFS (`find_path`) that takes a *set* of goal tiles so "reach any tile next to this tree" is one call; a job-revision counter (`job_rev`) so idle dwarves don't re-scan the queue every frame; and needs/mood as plain floats nudged each tick. It also carries a JSON save/load and a live perf readout in the HUD. Exercise: add a "haul" job so mined stone has to be carried to a stockpile before it counts.
+
+### noita_demake.py — a wand-and-powder cave crawl
+The `powder_box` falling-sand idea scaled to a 560×176 world with water, oil, lava, toxic sludge, fire, and smoke that all interact (lava + water → rock + steam), plus a platformer character, spell projectiles that dig terrain, enemies, and a shop. The lesson worth stealing: the sim only updates cells inside a margin around the camera (see `update_materials`), which is the only reason a world that big runs at all. Exercise: add a new liquid — acid that eats dirt and rock but not brick.
+
+### stone_ledger.py — a world forge and legends browser
+Value-noise heightmaps (the `fbm` stack), downhill river tracing, flood-filled biome regions, then civilizations, wars, artifacts, and a browseable event timeline generated on top. It's a master class in *deterministic* generation: everything hangs off one seed through a `random.Random(seed)`, so the same seed always forges the same world. Exercise: add a "plague" event type that culls a site's population and shows on the timeline.
+
+### starlance.py — a wireframe space dogfighter
+A from-scratch 3D pipeline in ~50 lines (`cam` translates and rotates, `project` does the perspective divide), models stored as vert/edge lists, and an FTL-style run of jumps, shops, and a boss. Debris is made by exploding the dead ship's own edges into drifting line segments. Exercise: add a wingman ship that flies the same pipeline and shoots the enemy nearest *it*.
+
+### undervault.py — a lane-based dungeon crawler
+Pseudo-3D from three floor "lanes" of converging width, `pyxel.pal()` swaps for torch-lit light banding, a turn scheduler, and modal UI screens (inventory, log, character) drawn over a paused world. The trick to study: the whole scene is painted back-to-front by lane, so a monster in a near lane correctly overlaps one behind it with no z-buffer — the same "draw order is depth" idea as `koi_pond`, in a grid. Exercise: add a thrown-torch item that lights a tile a few squares away.
+
 ## Performance notes
 
 Pyxel on the web runs through WASM and is roughly 2–4× slower than desktop. If a demo chugs on pyxelstudio: shrink the world first (`W = H = 96` rescues almost anything), then reduce population constants, then increase `STEP_EVERY`-style throttles. Per-pixel Python loops are the enemy — that's why `powder_box` only redraws dirty cells and `lava_lamp` samples a coarse grid. When you need raw grid speed, `bytearray` + manual indexing beats nested lists, and integer math (`(v * 15) >> 4`) beats float math.
@@ -150,4 +169,4 @@ You'll see three styles in this repo, deliberately. A `@dataclass` (in `mycelium
 
 ## Roadmap (when you're ready)
 
-Sound: `pyxel.sounds[0].set(...)` + `pyxel.play` — give the terrarium chirps and the powder box a fire crackle. Sprites: draw pips in the built-in editor (`pyxel edit`) and blit with `blt` instead of circles. Shipping: `pyxel app2html` produces one self-contained file you can host on GitHub Pages right next to `script.js`. After publishing, fill the `#` demoUrls and replace the thumbnails — the arcade page is already wired for all nine.
+Sound: `pyxel.sounds[0].set(...)` + `pyxel.play` — give the terrarium chirps and the powder box a fire crackle (the games already score themselves this way; see `make_sounds` in `starlance` or `undervault`). Sprites: draw pips in the built-in editor (`pyxel edit`) and blit with `blt` instead of circles. Shipping: the arcade page already runs every demo straight from the repo through the Pyxel Web Launcher, so pushing is publishing; `pyxel app2html` is there if you want a standalone file too. When a demo's look changes, re-shoot its thumbnail so the card in `script.js` matches.
