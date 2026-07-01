@@ -928,9 +928,37 @@ class App:
             self.mode = "map"
             self.view = 0
 
+    def tab_hotspots(self):
+        """Mirror draw_tabs() geometry: (label, x, w) per tab."""
+        out = []
+        x = 58
+        for label in ("MAP", "BIOME", "CIV", "LEGENDS", "HISTORY"):
+            w = len(label) * 4 + 12
+            out.append((label, x, w))
+            x += w + 3
+        return out
+
+    def click_tabs(self):
+        mx, my = pyxel.mouse_x, pyxel.mouse_y
+        if not 20 <= my < 32:
+            return False
+        for i, (label, x, w) in enumerate(self.tab_hotspots()):
+            if x <= mx < x + w:
+                if label == "LEGENDS":
+                    self.mode = "legends"
+                elif label == "HISTORY":
+                    self.mode = "history"
+                else:
+                    self.mode = "map"
+                    self.view = i
+                return True
+        return False
+
     def update_viewer(self):
         if pyxel.btnp(pyxel.KEY_TAB):
             self.cycle_view()
+            return
+        if pyxel.btnp(pyxel.MOUSE_BUTTON_LEFT) and self.click_tabs():
             return
         if pyxel.btnp(pyxel.KEY_1):
             self.mode = "map"
@@ -962,6 +990,12 @@ class App:
         if pyxel.btnp(pyxel.KEY_DOWN, 10, 3) or pyxel.btnp(pyxel.KEY_S, 10, 3):
             self.cy = min(MH - 1, self.cy + 1)
             moved = True
+        if pyxel.btnp(pyxel.MOUSE_BUTTON_LEFT):
+            mx, my = pyxel.mouse_x, pyxel.mouse_y
+            if MAP_X <= mx < MAP_X + MAP_W and MAP_Y <= my < MAP_Y + MAP_H:
+                self.cx = (mx - MAP_X) // MAP_SCALE
+                self.cy = (my - MAP_Y) // MAP_SCALE
+                moved = True
         if moved:
             rid = self.world.tile(self.cx, self.cy).region
             if rid >= 0:
@@ -1003,10 +1037,11 @@ class App:
             self.leg_tab = (self.leg_tab + 1) % 4
             self.leg_i = 0
         items = self.current_leg_list()
-        if pyxel.btnp(pyxel.KEY_UP, 10, 4) or pyxel.btnp(pyxel.KEY_W, 10, 4):
-            self.leg_i = max(0, self.leg_i - 1)
-        if pyxel.btnp(pyxel.KEY_DOWN, 10, 4) or pyxel.btnp(pyxel.KEY_S, 10, 4):
-            self.leg_i = min(max(0, len(items) - 1), self.leg_i + 1)
+        wheel = int(pyxel.mouse_wheel)
+        if pyxel.btnp(pyxel.KEY_UP, 10, 4) or pyxel.btnp(pyxel.KEY_W, 10, 4) or wheel > 0:
+            self.leg_i = max(0, self.leg_i - max(1, wheel))
+        if pyxel.btnp(pyxel.KEY_DOWN, 10, 4) or pyxel.btnp(pyxel.KEY_S, 10, 4) or wheel < 0:
+            self.leg_i = min(max(0, len(items) - 1), self.leg_i + max(1, -wheel))
         if pyxel.btnp(pyxel.KEY_RETURN) and items:
             item = items[self.leg_i]
             loc = None
@@ -1026,10 +1061,12 @@ class App:
                 self.mode = "map"
 
     def update_history(self):
-        if pyxel.btnp(pyxel.KEY_UP, 10, 4) or pyxel.btnp(pyxel.KEY_W, 10, 4):
-            self.hist_i = max(0, self.hist_i - 1)
-        if pyxel.btnp(pyxel.KEY_DOWN, 10, 4) or pyxel.btnp(pyxel.KEY_S, 10, 4):
-            self.hist_i = min(max(0, len(self.world.events) - 1), self.hist_i + 1)
+        wheel = int(pyxel.mouse_wheel)
+        if pyxel.btnp(pyxel.KEY_UP, 10, 4) or pyxel.btnp(pyxel.KEY_W, 10, 4) or wheel > 0:
+            self.hist_i = max(0, self.hist_i - max(1, wheel))
+        if pyxel.btnp(pyxel.KEY_DOWN, 10, 4) or pyxel.btnp(pyxel.KEY_S, 10, 4) or wheel < 0:
+            self.hist_i = min(max(0, len(self.world.events) - 1),
+                              self.hist_i + max(1, -wheel))
         if pyxel.btnp(pyxel.KEY_PAGEUP):
             self.hist_i = max(0, self.hist_i - 8)
         if pyxel.btnp(pyxel.KEY_PAGEDOWN):
@@ -1193,8 +1230,10 @@ class App:
         r = self.world.region_at(self.cx, self.cy)
         site = self.world.sites[t.site].name if t.site >= 0 else "-"
         civ = self.world.civs[t.civ].name if t.civ >= 0 else "wild"
+        civ_col = self.world.civs[t.civ].color if t.civ >= 0 else 7
         pyxel.text(12, 149, "%s / %s" % (trim(r.name, 18), t.biome), 15)
-        pyxel.text(12, 157, "site %s" % trim(site, 24), 7)
+        pyxel.text(12, 157, "site %s" % trim(site, 14), 7)
+        pyxel.text(92, 157, trim(civ, 12), civ_col)
         pyxel.text(142, 149, "h%02d r%02d t%02d v%02d e%02d" %
                    (t.h * 99, t.rain * 99, t.temp * 99, t.volc * 99, t.evil * 99), 11)
         pyxel.text(142, 157, "TAB view  Q/E reg", 7)

@@ -1,14 +1,30 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Pyxel Arcade</title>
+    <meta name="description" content="A showcase of small games and generative toys built with the Pyxel fantasy console. Play them in the browser or read the source.">
     <link rel="stylesheet" type="text/css" href="styles.css">
 </head>
 <body>
-    <h1>Pyxel Game Showcase</h1>
-    <div id="game-list">
-        <!-- Game entries will be populated here -->
-    </div>
+    <header>
+        <h1>Pyxel Arcade</h1>
+        <p>Small games and generative toys built with the
+           <a href="https://github.com/kitao/pyxel" target="_blank" rel="noopener">Pyxel</a>
+           fantasy console. Click <strong>Play</strong> to run one in your browser, or
+           <strong>Code</strong> to read how it works.</p>
+        <span class="count" id="count"></span>
+    </header>
+
+    <main id="game-list">
+        <!-- Game entries are populated by script.js -->
+    </main>
+
+    <footer>
+        Built with <a href="https://github.com/kitao/pyxel" target="_blank" rel="noopener">Pyxel</a>.
+        Source on <a href="https://github.com/alexkorol/pyxel-arcade" target="_blank" rel="noopener">GitHub</a>.
+    </footer>
 
     <script src="script.js"></script>
 </body>

@@ -120,12 +120,24 @@ games.forEach(function(game) {
     gameCard.className = 'game-card';
 
     gameCard.innerHTML = `
-        <h2>${game.title}</h2>
-        <img src="${game.image}" alt="${game.title}">
-        <p>${game.description}</p>
-        <a href="${game.demoUrl}" target="_blank">Demo</a> |
-        <a href="${game.codeUrl}" target="_blank">Code</a>
+        <a class="thumb" href="${game.demoUrl}" target="_blank" rel="noopener">
+            <img src="${game.image}" alt="${game.title} screenshot" loading="lazy">
+        </a>
+        <div class="body">
+            <h2>${game.title}</h2>
+            <p>${game.description}</p>
+            <div class="actions">
+                <a class="play" href="${game.demoUrl}" target="_blank" rel="noopener">▶ Play</a>
+                <a class="code" href="${game.codeUrl}" target="_blank" rel="noopener">Code</a>
+            </div>
+        </div>
     `;
 
     gameList.appendChild(gameCard);
 });
+
+// Show how many demos are on offer
+var count = document.getElementById('count');
+if (count) {
+    count.textContent = games.length + ' demos';
+}

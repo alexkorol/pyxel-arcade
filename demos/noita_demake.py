@@ -752,7 +752,6 @@ class App:
         self.play(2)
 
     def handle_casting(self):
-        p = self.player
         if pyxel.btnp(pyxel.KEY_E):
             self.try_use_nearby()
         if (pyxel.btn(pyxel.MOUSE_BUTTON_RIGHT) or pyxel.btn(pyxel.KEY_F)) and self.flask_amt > 0:

@@ -1,37 +1,171 @@
-body {
-    font-family: Arial, sans-serif;
-    background-color: #f4f4f4;
+:root {
+    --bg: #0b0d17;
+    --bg-2: #12162a;
+    --panel: #171c33;
+    --panel-2: #1e2440;
+    --ink: #e7e9f5;
+    --muted: #9aa3c4;
+    --accent: #ffd23e;
+    --accent-2: #41a6f6;
+    --line: #2b3157;
 }
 
-h1 {
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: "Segoe UI", system-ui, Arial, sans-serif;
+    color: var(--ink);
+    background:
+        radial-gradient(1200px 600px at 50% -180px, rgba(65, 166, 246, 0.12) 0, transparent 60%),
+        linear-gradient(180deg, var(--bg-2), var(--bg) 40%);
+    background-color: var(--bg);
+    min-height: 100vh;
+    line-height: 1.5;
+}
+
+header {
     text-align: center;
-    padding: 20px;
+    padding: 42px 20px 12px;
+}
+
+header h1 {
+    margin: 0;
+    font-size: clamp(2rem, 6vw, 3.4rem);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    text-shadow: 0 0 18px rgba(255, 210, 62, 0.25);
+}
+
+header p {
+    margin: 10px auto 0;
+    max-width: 640px;
+    color: var(--muted);
+}
+
+.count {
+    display: inline-block;
+    margin-top: 14px;
+    padding: 4px 12px;
+    font-size: 0.8rem;
+    letter-spacing: 0.08em;
+    color: var(--bg);
+    background: var(--accent-2);
+    border-radius: 999px;
 }
 
 #game-list {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-around;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+    max-width: 1120px;
+    margin: 26px auto 60px;
+    padding: 0 20px;
 }
 
 .game-card {
-    border: 1px solid #ddd;
-    margin: 10px;
-    padding: 10px;
-    width: 300px;
-    text-align: center;
+    display: flex;
+    flex-direction: column;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.game-card h2 {
-    font-size: 1.5em;
+.game-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--accent-2);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
 }
 
-.game-card p {
-    font-size: 1em;
+.game-card .thumb {
+    display: block;
+    aspect-ratio: 1 / 1;
+    width: 100%;
+    background: #000;
+    border-bottom: 1px solid var(--line);
 }
 
 .game-card img {
     width: 100%;
-    height: auto;
+    height: 100%;
+    object-fit: cover;
     image-rendering: pixelated;
+    display: block;
+}
+
+.game-card .body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    padding: 14px 16px 16px;
+}
+
+.game-card h2 {
+    margin: 0 0 8px;
+    font-size: 1.15rem;
+    color: var(--ink);
+}
+
+.game-card p {
+    margin: 0 0 16px;
+    font-size: 0.86rem;
+    color: var(--muted);
+    flex: 1;
+}
+
+.actions {
+    display: flex;
+    gap: 10px;
+}
+
+.actions a {
+    flex: 1;
+    text-align: center;
+    padding: 8px 10px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-decoration: none;
+    border-radius: 8px;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.actions .play {
+    background: var(--accent);
+    color: #1a1400;
+}
+
+.actions .play:hover {
+    background: #ffe06b;
+}
+
+.actions .code {
+    background: var(--panel-2);
+    color: var(--ink);
+    border: 1px solid var(--line);
+}
+
+.actions .code:hover {
+    border-color: var(--accent-2);
+    color: var(--accent-2);
+}
+
+footer {
+    text-align: center;
+    padding: 24px 20px 40px;
+    color: var(--muted);
+    font-size: 0.82rem;
+}
+
+footer a {
+    color: var(--accent-2);
+    text-decoration: none;
+}
+
+footer a:hover {
+    text-decoration: underline;
 }

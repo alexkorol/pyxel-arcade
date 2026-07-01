@@ -1,7 +1,7 @@
 """Powder Box -- a tiny falling-sand sandbox.
 
 Controls:  left-drag = paint     right-drag = erase
-           1 sand  2 water  3 wall  4 plant  5 fire  0 erase
+           1 sand  2 water  3 wall  4 plant  5 fire  6 oil  0 erase
            Z / X = brush smaller / bigger     C = clear
 
 Study: cellular automata on a flat bytearray, two scan passes
@@ -13,15 +13,16 @@ import random
 import pyxel
 
 W, SIM_H, BAR_H = 128, 116, 12
-EMPTY, WALL, SAND, WATER, PLANT, FIRE, SMOKE = range(7)
+EMPTY, WALL, SAND, WATER, PLANT, FIRE, SMOKE, OIL = range(8)
 COLORS = {
     EMPTY: (0,), WALL: (13,), SAND: (15, 9), WATER: (12, 6),
-    PLANT: (11, 3), FIRE: (8, 9, 10), SMOKE: (13, 5),
+    PLANT: (11, 3), FIRE: (8, 9, 10), SMOKE: (13, 5), OIL: (2, 1),
 }
 PALETTE_KEYS = [  # (key, element, label)
     (pyxel.KEY_1, SAND, "sand"), (pyxel.KEY_2, WATER, "watr"),
     (pyxel.KEY_3, WALL, "wall"), (pyxel.KEY_4, PLANT, "plnt"),
-    (pyxel.KEY_5, FIRE, "fire"), (pyxel.KEY_0, EMPTY, "del"),
+    (pyxel.KEY_5, FIRE, "fire"), (pyxel.KEY_6, OIL, "oil"),
+    (pyxel.KEY_0, EMPTY, "del"),
 ]
 
 
@@ -86,6 +87,12 @@ class App:
         elif self.get(x + dx, y) == EMPTY:
             self.swap(x, y, x + dx, y)
 
+    def float_up(self, x, y):
+        """Oil is lighter than water: bubble up through it. Runs in the
+        top-down riser pass so a slick only climbs once per frame."""
+        if self.get(x, y - 1) == WATER and random.random() < 0.4:
+            self.swap(x, y, x, y - 1)
+
     def sprout(self, x, y):
         if random.random() < 0.02:
             dx, dy = random.choice(((0, -1), (-1, 0), (1, 0), (0, -1)))
@@ -97,6 +104,8 @@ class App:
         for dx, dy in ((0, -1), (0, 1), (-1, 0), (1, 0)):
             n = self.get(x + dx, y + dy)
             if n == PLANT and random.random() < 0.25:
+                self.set(x + dx, y + dy, FIRE)
+            elif n == OIL and random.random() < 0.5:  # oil catches fast
                 self.set(x + dx, y + dy, FIRE)
             elif n == WATER:  # doused
                 self.set(x, y, SMOKE)
@@ -142,8 +151,8 @@ class App:
             for x in xs:
                 e = self.get(x, y)
                 if e == SAND:
-                    self.fall(x, y, (EMPTY, WATER))
-                elif e == WATER:
+                    self.fall(x, y, (EMPTY, WATER, OIL))
+                elif e in (WATER, OIL):
                     self.flow(x, y)
                 elif e == PLANT:
                     self.sprout(x, y)
@@ -155,6 +164,8 @@ class App:
                     self.burn(x, y)
                 elif e == SMOKE:
                     self.rise(x, y)
+                elif e == OIL:
+                    self.float_up(x, y)
 
     def paint(self, elem):
         mx, my, r = pyxel.mouse_x, pyxel.mouse_y, self.brush
@@ -164,7 +175,7 @@ class App:
                     continue
                 x, y = mx + dx, my + dy
                 if 1 <= x < W - 1 and 1 <= y < SIM_H - 1:
-                    if elem == EMPTY or self.get(x, y) in (EMPTY, WATER, SMOKE):
+                    if elem == EMPTY or self.get(x, y) in (EMPTY, WATER, SMOKE, OIL):
                         self.set(x, y, elem)
 
     # -- rendering ----------------------------------------------------
@@ -191,7 +202,7 @@ class App:
         # toolbar
         pyxel.rect(0, SIM_H, W, BAR_H, 1)
         for i, (_, elem, label) in enumerate(PALETTE_KEYS):
-            x = 2 + i * 21
+            x = 2 + i * 18
             pyxel.rect(x, SIM_H + 2, 8, 8, COLORS[elem][0])
             pyxel.text(x + 10, SIM_H + 4, label[0], 7)
             if elem == self.element:

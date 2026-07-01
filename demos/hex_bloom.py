@@ -11,7 +11,6 @@ Study: axial hex coordinates and cube rounding (see Red Blob Games),
 dict-based sparse grids, generation-banded color ramps.
 """
 import math
-import random
 
 import pyxel
 
@@ -23,6 +22,7 @@ NEIGHBORS = ((1, 0), (1, -1), (0, -1), (-1, 0), (-1, 1), (0, 1))
 RULES = [({1}, "flake"), ({1, 2}, "coral")]
 RAMP = [7, 12, 6, 11, 3, 10, 9, 8, 14, 2]
 STEP_EVERY = 4             # frames between growth pulses
+MARGIN = 12                # sim halts this far past the screen edge
 
 
 def hex_to_px(q, r):
@@ -94,6 +94,9 @@ class App:
             self.queue.append((q, r))
 
     def grow(self):
+        # only cells near the screen keep growing: without this cap the
+        # colony expands forever off-screen and each pulse gets slower
+        # (O(cells) work for cells nobody can see)
         rule = RULES[self.rule_i][0]
         counts = {}
         for (q, r) in self.born:
@@ -105,6 +108,8 @@ class App:
         for cell, k in counts.items():
             if k in rule:
                 x, y = hex_to_px(*cell)
+                if not (-MARGIN < x < W + MARGIN and -MARGIN < y < H + MARGIN):
+                    continue
                 self.born[cell] = self.gen
                 if -4 < x < W + 4 and -4 < y < H + 4:
                     self.queue.append(cell)

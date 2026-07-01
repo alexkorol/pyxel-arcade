@@ -333,7 +333,20 @@ class App:
         self.shake *= 0.8
         self.flash = max(0, self.flash - 1)
 
+    def map_card_at(self, mx, my):
+        n = len(self.choices)
+        cw = 62
+        x0 = CX - (n * cw + (n - 1) * 8) // 2
+        for i in range(n):
+            x = x0 + i * (cw + 8)
+            if x <= mx < x + cw and 46 <= my < 132:
+                return i
+        return None
+
     def update_map(self):
+        hov = self.map_card_at(pyxel.mouse_x, pyxel.mouse_y)
+        if hov is not None:
+            self.sel = hov
         if pyxel.btnp(pyxel.KEY_LEFT) or pyxel.btnp(pyxel.KEY_A):
             self.sel = max(0, self.sel - 1)
         if pyxel.btnp(pyxel.KEY_RIGHT) or pyxel.btnp(pyxel.KEY_D):
@@ -714,11 +727,16 @@ class App:
         return items
 
     def update_shop(self):
+        my = pyxel.mouse_y
+        row = (my - 32) // 11
+        if 20 <= pyxel.mouse_x < W - 20 and 0 <= row < len(self.shop_items):
+            self.sel = row
         if pyxel.btnp(pyxel.KEY_UP, 12, 4) or pyxel.btnp(pyxel.KEY_W, 12, 4):
             self.sel = max(0, self.sel - 1)
         if pyxel.btnp(pyxel.KEY_DOWN, 12, 4) or pyxel.btnp(pyxel.KEY_S, 12, 4):
             self.sel = min(len(self.shop_items) - 1, self.sel + 1)
-        if pyxel.btnp(pyxel.KEY_RETURN) or pyxel.btnp(pyxel.KEY_SPACE):
+        if pyxel.btnp(pyxel.KEY_RETURN) or pyxel.btnp(pyxel.KEY_SPACE) or \
+                pyxel.btnp(pyxel.MOUSE_BUTTON_LEFT):
             label, cost, key = self.shop_items[self.sel]
             if key == "depart":
                 self.choices = self.gen_choices()
@@ -1012,7 +1030,8 @@ class App:
                 else:
                     line = (line + " " + w_).strip()
             pyxel.text(x + 4, yy, line, 5)
-        pyxel.text(CX - 56, 142, "arrows pick  enter / click embark", 5)
+        pyxel.text(CX - 56, 142, "hover / arrows pick  click embark", 5)
+        pyxel.pset(pyxel.mouse_x, pyxel.mouse_y, 13)
 
     def draw_shop(self):
         self.draw_panel("waystation %d  --  market drift %+d%%" %
@@ -1030,7 +1049,8 @@ class App:
             pyxel.text(32, y, label, col)
             if cost:
                 pyxel.text(W - 52, y, "%d cr" % cost, 10 if cost <= self.credits else 5)
-        pyxel.text(24, H - 22, "up/down + enter", 5)
+        pyxel.text(24, H - 22, "up/down + enter, or click", 5)
+        pyxel.pset(pyxel.mouse_x, pyxel.mouse_y, 13)
 
     def draw_end(self):
         won = self.state == "win"
