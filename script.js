@@ -12,6 +12,13 @@ var games = [
         codeUrl: 'https://github.com/alexkorol/pyxel-arcade/blob/master/demos/noita_demake.py',
     },
     {
+        title: 'Cymatic',
+        description: 'A playable Chladni plate: sand drains onto the nodal lines of a vibrating square, drawing each (m,n) resonance figure. Drag or use arrows to tune the mode, SPACE shuffles, P steps presets, S toggles sound.',
+        image: 'demos/cymatic.png',
+        demoUrl: LAUNCHER + 'cymatic',
+        codeUrl: 'https://github.com/alexkorol/pyxel-arcade/blob/master/demos/cymatic.py',
+    },
+    {
         title: 'Hill Fort',
         description: 'A tiny fortress roguelite: start outside, dig into a hill, manage civilian and militia dwarves, hunt, fish, cook, craft, build workshops and stairs, and survive endless escalating raids. Arrows move, D designates, B builds, Q/E changes depth.',
         image: 'demos/hill_fort.png',
