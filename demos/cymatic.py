@@ -14,22 +14,25 @@ plate rings in a superposition with a slowly drifting mixing sign s:
 
 Grains random-walk hardest where |a| is large and descend the analytic
 gradient of a^2, so they pool on the nodes (a = 0) -- exactly like sand on
-a bowed plate. A trickle of re-pouring keeps the main diagonal (a node of
-every mode) from hoarding grains. NumPy vectorizes the whole cloud.
+a bowed plate. To stay pure-Python-fast (the web launcher has no NumPy) the
+four cos/sin terms are read from per-frame lookup tables instead of calling
+trig 8x per grain: a(x,y) only depends on x and y, quantized to R levels.
 """
 import math
+import random
 
-import numpy as np
 import pyxel
 
 W = H = 128
 PLATE = 98
 OX = (W - PLATE) // 2
 OY = 11                       # header band above the plate
-N = 3000                      # sand grains
+FPS = 30
+N = 1600                      # sand grains (pure-Python budget)
+R = 256                       # cos/sin lookup-table resolution
 
 # settled sand (on the nodes) glows warm amber; shaken sand cools to violet
-COLS = np.array([10, 9, 4, 5, 1], dtype=np.int32)
+COLS = [10, 9, 4, 5, 1]
 
 PRESETS = [(1, 2), (2, 3), (1, 4), (3, 5), (2, 5),
            (4, 5), (3, 7), (5, 6), (6, 7), (5, 8)]
@@ -42,19 +45,25 @@ def clamp(v, a, b):
 
 class App:
     def __init__(self):
-        pyxel.init(W, H, title="Cymatic", fps=60)
+        pyxel.init(W, H, title="Cymatic", fps=FPS)
         pyxel.mouse(True)
-        self.px = np.random.random(N).astype(np.float32)
-        self.py = np.random.random(N).astype(np.float32)
-        self.v = np.zeros(N, dtype=np.float32)   # local amplitude per grain
+        self.px = [random.random() for _ in range(N)]
+        self.py = [random.random() for _ in range(N)]
+        self.vb = [0.0] * N                       # local amplitude per grain
+        # per-frame lookup tables for cos/sin(n pi x), cos/sin(m pi x)
+        self.cos_n = [0.0] * R
+        self.cos_m = [0.0] * R
+        self.sin_n = [0.0] * R
+        self.sin_m = [0.0] * R
 
         self.m = self.tm = 3.0
         self.n = self.tn = 5.0
-        self.s_ph = np.random.random() * math.tau
+        self.s_ph = random.random() * math.tau
         self.s = -1.0
         self.agitation = 0.0
         self.preset_i = 0
         self.interacted = False
+        self.recycle_acc = 0.0
 
         self.sound = True
         self.dragging = False
@@ -82,9 +91,9 @@ class App:
     def shuffle(self):
         a = b = 1
         while a == b:                     # m == n is silent (pattern vanishes)
-            a, b = 1 + int(pyxel.rndi(0, 7)), 1 + int(pyxel.rndi(0, 7))
+            a, b = 1 + random.randrange(8), 1 + random.randrange(8)
         self.tm, self.tn = a, b
-        self.s_ph = np.random.random() * math.tau
+        self.s_ph = random.random() * math.tau
         self.agitation = min(self.agitation + 1.0, 1.4)
         self.interacted = True
         self.flash = 8
@@ -109,7 +118,7 @@ class App:
             if self.sound:
                 self.blip()
 
-        step = 0.12
+        step = 0.24
         keyed = False
         if pyxel.btn(pyxel.KEY_RIGHT):
             self.tm = clamp(self.tm + step, 1, 8); keyed = True
@@ -144,16 +153,16 @@ class App:
             uy = (pyxel.mouse_y - OY) / PLATE
             if 0.0 <= ux <= 1.0 and 0.0 <= uy <= 1.0:
                 self.interacted = True
-                idx = np.random.randint(0, N, 40)
-                self.px[idx] = np.clip(
-                    ux + np.random.normal(0, 0.03, 40), 0, 1).astype(np.float32)
-                self.py[idx] = np.clip(
-                    uy + np.random.normal(0, 0.03, 40), 0, 1).astype(np.float32)
+                px, py = self.px, self.py
+                for _ in range(30):
+                    k = random.randrange(N)
+                    px[k] = clamp(ux + random.gauss(0, 0.03), 0.0, 1.0)
+                    py[k] = clamp(uy + random.gauss(0, 0.03), 0.0, 1.0)
 
     def idle_drift(self):
         if self.interacted:
             return
-        t = pyxel.frame_count / 60.0
+        t = pyxel.frame_count / FPS
         self.tm = 3.5 + 2.4 * math.sin(t * 0.11)
         self.tn = 4.5 + 2.4 * math.sin(t * 0.073 + 2.1)
 
@@ -163,9 +172,9 @@ class App:
         self.idle_drift()
 
         # glide toward the target mode; drift the degeneracy-mixing sign
-        self.m += (self.tm - self.m) * 0.06
-        self.n += (self.tn - self.n) * 0.06
-        self.s_ph += 0.0025
+        self.m += (self.tm - self.m) * 0.09
+        self.n += (self.tn - self.n) * 0.09
+        self.s_ph += 0.005
         self.s = math.sin(self.s_ph)
 
         # detent ticks: the dial clicks as the mode crosses each integer
@@ -175,39 +184,62 @@ class App:
             if self.sound and self.interacted:
                 pyxel.play(1, 1)
 
-        shake = 0.0058 + self.agitation * 0.02
-        lr, cap, floor, recycle = 0.00028, 0.0042, 0.05, 0.00004
+        # rebuild the cos/sin lookup tables for this frame's mode
         nPI, mPI, s = self.n * math.pi, self.m * math.pi, self.s
-        px, py = self.px, self.py
+        cos_n, cos_m = self.cos_n, self.cos_m
+        sin_n, sin_m = self.sin_n, self.sin_m
+        inv = 1.0 / R
+        for i in range(R):
+            xc = i * inv
+            cos_n[i] = math.cos(nPI * xc)
+            sin_n[i] = math.sin(nPI * xc)
+            cos_m[i] = math.cos(mPI * xc)
+            sin_m[i] = math.sin(mPI * xc)
+
+        shake = 0.0058 + self.agitation * 0.02
+        lr, cap, floor = 0.00028, 0.0042, 0.05
+        px, py, vb = self.px, self.py, self.vb
+        rnd = random.random
+        Rm1 = R - 1
 
         # fresh sand trickle so no node line hoards grains across mode changes
-        m_recycle = np.random.random(N) < recycle
-        k = int(m_recycle.sum())
-        if k:
-            px[m_recycle] = np.random.random(k).astype(np.float32)
-            py[m_recycle] = np.random.random(k).astype(np.float32)
+        self.recycle_acc += N * 0.00004
+        while self.recycle_acc >= 1.0:
+            k = random.randrange(N)
+            px[k] = rnd(); py[k] = rnd()
+            self.recycle_acc -= 1.0
 
-        cnx, cmx = np.cos(nPI * px), np.cos(mPI * px)
-        cny, cmy = np.cos(nPI * py), np.cos(mPI * py)
-        a = cnx * cmy + s * cmx * cny                       # |a| <= 2
+        for i in range(N):
+            x = px[i]; y = py[i]
+            ix = int(x * R); ix = ix if ix < R else Rm1
+            iy = int(y * R); iy = iy if iy < R else Rm1
+            cnx = cos_n[ix]; cmx = cos_m[ix]
+            cny = cos_n[iy]; cmy = cos_m[iy]
+            a = cnx * cmy + s * cmx * cny             # |a| <= 2
 
-        # analytic gradient of a -> descend a^2 onto the nodal lines
-        dax = -nPI * np.sin(nPI * px) * cmy - s * mPI * np.sin(mPI * px) * cny
-        day = -mPI * cnx * np.sin(mPI * py) - s * nPI * cmx * np.sin(nPI * py)
-        gx = np.clip(-lr * a * dax, -cap, cap)
-        gy = np.clip(-lr * a * day, -cap, cap)
+            # analytic gradient of a -> descend a^2 onto the nodal lines
+            dax = -nPI * sin_n[ix] * cmy - s * mPI * sin_m[ix] * cny
+            day = -mPI * cnx * sin_m[iy] - s * nPI * cmx * sin_n[iy]
+            gx = -lr * a * dax
+            if gx > cap: gx = cap
+            elif gx < -cap: gx = -cap
+            gy = -lr * a * day
+            if gy > cap: gy = cap
+            elif gy < -cap: gy = -cap
 
-        v = np.abs(a) * 0.5                                  # 0..1 shake strength
-        j = shake * (v + floor)
-        nx = px + gx + (np.random.random(N).astype(np.float32) - 0.5) * j
-        ny = py + gy + (np.random.random(N).astype(np.float32) - 0.5) * j
+            v = (a if a >= 0 else -a) * 0.5           # 0..1 shake strength
+            j = shake * (v + floor)
+            nx = x + gx + (rnd() - 0.5) * j
+            ny = y + gy + (rnd() - 0.5) * j
 
-        # reflect at the rim
-        nx = np.where(nx < 0, -nx, nx); nx = np.where(nx > 1, 2 - nx, nx)
-        ny = np.where(ny < 0, -ny, ny); ny = np.where(ny > 1, 2 - ny, ny)
-        self.px = np.clip(nx, 0.0, 1.0)
-        self.py = np.clip(ny, 0.0, 1.0)
-        self.v = v
+            # reflect at the rim
+            if nx < 0: nx = -nx
+            elif nx > 1: nx = 2 - nx
+            if ny < 0: ny = -ny
+            elif ny > 1: ny = 2 - ny
+            px[i] = 0.0 if nx < 0 else 1.0 if nx > 1 else nx
+            py[i] = 0.0 if ny < 0 else 1.0 if ny > 1 else ny
+            vb[i] = v
 
         self.agitation *= 0.92
 
@@ -225,20 +257,23 @@ class App:
         border = 10 if self.flash > 4 else 9 if self.flash > 0 else 1
         pyxel.rectb(OX + jx - 1, OY + jy - 1, PLATE + 2, PLATE + 2, border)
         # amber corner brackets give it an instrument-panel look
+        bracket = 9 if border == 1 else 10
         for cx in (OX - 1, OX + PLATE):
             for cy in (OY - 1, OY + PLATE):
-                pyxel.pset(cx + jx, cy + jy, 9 if border == 1 else 10)
+                pyxel.pset(cx + jx, cy + jy, bracket)
 
-        sx = (OX + jx + self.px * PLATE).astype(np.int32)
-        sy = (OY + jy + self.py * PLATE).astype(np.int32)
-        b = np.clip((self.v * 5).astype(np.int32), 0, 4)
-        col = COLS[b]
-        # settled grains twinkle: a few flash white each frame
-        spark = (self.v < 0.08) & (np.random.random(N) < 0.02)
-        col = np.where(spark, 7, col)
-        # single-pixel grains, brightest where the sand has settled
-        for x, y, c in zip(sx.tolist(), sy.tolist(), col.tolist()):
-            pyxel.pset(x, y, c)
+        px, py, vb = self.px, self.py, self.vb
+        pset = pyxel.pset
+        rnd = random.random
+        ox, oy = OX + jx, OY + jy
+        for i in range(N):
+            v = vb[i]
+            b = int(v * 5)
+            c = COLS[b] if b < 5 else 1
+            # settled grains twinkle: a few flash white each frame
+            if v < 0.08 and rnd() < 0.02:
+                c = 7
+            pset(int(ox + px[i] * PLATE), int(oy + py[i] * PLATE), c)
 
         pyxel.text(2, 2, "CYMATIC", 10)
         pyxel.text(52, 2, "chladni plate", 5)
