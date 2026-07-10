@@ -1,0 +1,51 @@
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  check-demos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q xvfb libsdl2-2.0-0
+          pip install pyxel pillow
+
+      - name: Quality gate (imports, manifest, smoke tests)
+        run: xvfb-run -a -s "-screen 0 640x480x24" python tools/check_demos.py
+        env:
+          SDL_AUDIODRIVER: dummy
+
+      - name: Regenerate missing thumbnails (push to master only)
+        if: github.event_name == 'push'
+        run: |
+          missing=$(python - <<'EOF'
+          import json, os
+          m = json.load(open("demos/manifest.json"))
+          print(" ".join(g["slug"] for g in m["games"]
+                if not os.path.exists(f"demos/{g['slug']}.webp")
+                or not os.path.exists(f"demos/{g['slug']}.png")))
+          EOF
+          )
+          if [ -n "$missing" ]; then
+            echo "regenerating: $missing"
+            xvfb-run -a -s "-screen 0 640x480x24" python tools/make_previews.py $missing
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add demos/*.png demos/*.webp
+            git commit -m "Auto-generate missing demo thumbnails [skip ci]" && git push || true
+          else
+            echo "no missing thumbnails"
+          fi
+        env:
+          SDL_AUDIODRIVER: dummy
