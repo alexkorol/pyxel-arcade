@@ -1,0 +1,226 @@
+{
+  "launcher": "https://kitao.github.io/pyxel/web/launcher/?run=alexkorol/pyxel-arcade/master/demos/",
+  "repo": "https://github.com/alexkorol/pyxel-arcade",
+  "games": [
+    {
+      "slug": "noita_demake",
+      "title": "Noita Demake",
+      "description": "A pocket wand-and-powder cave crawl: pixel liquids, fire, toxic sludge, gold, procedural biomes, enemies, spell slots, wand stats, flask pouring, Holy Mountain shops, and a final Sampo shard escape.",
+      "controls": [
+        ["A / D", "Move"],
+        ["W", "Levitate"],
+        ["Mouse", "Aim"],
+        ["Click / Z", "Cast spell"],
+        ["F", "Pour flask"],
+        ["Tab", "Edit wands"]
+      ],
+      "tags": ["game", "action", "roguelite", "sandbox"],
+      "added": "2026-06-26",
+      "difficulty": "tricky",
+      "touch": false
+    },
+    {
+      "slug": "cymatic",
+      "title": "Cymatic",
+      "description": "A playable Chladni plate: sand drains onto the nodal lines of a vibrating square, drawing each (m,n) resonance figure.",
+      "controls": [
+        ["Drag / Arrows", "Tune the mode"],
+        ["Space", "Shuffle"],
+        ["P", "Step presets"],
+        ["S", "Toggle sound"]
+      ],
+      "tags": ["toy", "sim", "audio"],
+      "added": "2026-07-04",
+      "difficulty": "chill",
+      "touch": true
+    },
+    {
+      "slug": "hill_fort",
+      "title": "Hill Fort",
+      "description": "A tiny fortress roguelite: start outside, dig into a hill, manage civilian and militia dwarves, hunt, fish, cook, craft, build workshops and stairs, and survive endless escalating raids.",
+      "controls": [
+        ["Arrows", "Move cursor"],
+        ["D", "Designate digging"],
+        ["B", "Build"],
+        ["Q / E", "Change depth"]
+      ],
+      "tags": ["game", "sim", "strategy", "roguelite"],
+      "added": "2026-06-25",
+      "difficulty": "tricky",
+      "touch": false
+    },
+    {
+      "slug": "stone_ledger",
+      "title": "Stone Ledger",
+      "description": "A pocket world forge and legends viewer: value-noise continents, rivers, biomes, civ sites, roads, artifacts, wars, disasters, and a browseable event timeline.",
+      "controls": [
+        ["R", "Reroll world"],
+        ["Enter", "Forge history"],
+        ["Tab", "Map / biome / civ / legends / history"]
+      ],
+      "tags": ["toy", "sim", "procgen"],
+      "added": "2026-06-25",
+      "difficulty": "chill",
+      "touch": false
+    },
+    {
+      "slug": "shell_lab",
+      "title": "Shell Lab",
+      "description": "Elementary cellular automata grown into seashells — the textile cone really does wear Wolfram's Rule 30. Dial any rule 0-255, pick a specimen palette, and watch the shell draw itself tip to aperture.",
+      "controls": [
+        ["Arrows", "Change rule / specimen"],
+        ["Click", "Pick preview thumbs"],
+        ["S / W / R", "Seed options"],
+        ["[ / ]", "Pace"]
+      ],
+      "tags": ["toy", "automata", "generative"],
+      "added": "2026-06-25",
+      "difficulty": "chill",
+      "touch": true
+    },
+    {
+      "slug": "undervault",
+      "title": "Undervault",
+      "description": "A room-by-room dungeon dive with depth lanes, torch-lit walls, and bump combat. Fight down eight strata for the Ember Crown.",
+      "controls": [
+        ["Arrows / WASD / Click", "Move & fight"],
+        ["I", "Inventory"],
+        ["L", "Log"],
+        ["C", "Character"],
+        ["H", "Help"]
+      ],
+      "tags": ["game", "roguelite"],
+      "added": "2026-06-09",
+      "difficulty": "normal",
+      "touch": true
+    },
+    {
+      "slug": "starlance",
+      "title": "Starlance",
+      "description": "A wireframe space dogfighter with an FTL-style run: lasers overheat, missiles need a lock, credits drift out of every kill. Eight jumps, waystation shops, one carrier.",
+      "controls": [
+        ["Mouse", "Steer"],
+        ["Space", "Lasers"],
+        ["M", "Missile"]
+      ],
+      "tags": ["game", "action"],
+      "added": "2026-06-09",
+      "difficulty": "normal",
+      "touch": false
+    },
+    {
+      "slug": "color_mycelium",
+      "title": "Color Mycelium",
+      "description": "Branching hyphae paint slow rainbow threads.",
+      "controls": [
+        ["Click", "Plant spores"],
+        ["C", "Cycle palettes"],
+        ["F", "Toggle fade"]
+      ],
+      "tags": ["toy", "generative", "ambient"],
+      "added": "2023-06-05",
+      "difficulty": "chill",
+      "touch": true
+    },
+    {
+      "slug": "mycelium_garden",
+      "title": "Mycelium Garden",
+      "description": "Hyphae forage for nutrients, fatten up, and fruit into mushrooms that puff spores.",
+      "controls": [
+        ["Click", "Feed the network"]
+      ],
+      "tags": ["toy", "sim", "generative"],
+      "added": "2026-06-09",
+      "difficulty": "chill",
+      "touch": true
+    },
+    {
+      "slug": "powder_box",
+      "title": "Powder Box",
+      "description": "A falling-sand sandbox: sand, water, walls, plants, and fire.",
+      "controls": [
+        ["Mouse", "Paint"],
+        ["1-5", "Pick element"]
+      ],
+      "tags": ["toy", "sandbox", "sim"],
+      "added": "2026-06-09",
+      "difficulty": "chill",
+      "touch": true
+    },
+    {
+      "slug": "terrarium",
+      "title": "Terrarium",
+      "description": "A glass jar of tiny leaf-headed pips that trot, hop, and float. Drop berries, watch eggs hatch, fireflies at night.",
+      "controls": [
+        ["Click", "Drop berries"]
+      ],
+      "tags": ["toy", "sim", "ambient"],
+      "added": "2026-06-09",
+      "difficulty": "chill",
+      "touch": true
+    },
+    {
+      "slug": "physarum",
+      "title": "Physarum",
+      "description": "A slime mold of 320 blind agents builds veiny transport networks out of nothing.",
+      "controls": [
+        ["Hold click", "Drop food scent"]
+      ],
+      "tags": ["toy", "sim", "automata"],
+      "added": "2026-06-09",
+      "difficulty": "chill",
+      "touch": true
+    },
+    {
+      "slug": "hex_bloom",
+      "title": "Hex Bloom",
+      "description": "Snowflake crystals bloom on a hexagonal grid via the Ulam-Warburton rule.",
+      "controls": [
+        ["Click", "Seed a crystal"],
+        ["U", "Swap flake / coral"]
+      ],
+      "tags": ["toy", "automata", "generative"],
+      "added": "2026-06-09",
+      "difficulty": "chill",
+      "touch": true
+    },
+    {
+      "slug": "oculus_garden",
+      "title": "Oculus Garden",
+      "description": "A moonlit bed of eye-stalks that sway, track your cursor, and get shy if you stare.",
+      "controls": [
+        ["Mouse", "Be watched"],
+        ["Click soil", "Grow more"]
+      ],
+      "tags": ["toy", "ambient", "generative"],
+      "added": "2026-06-09",
+      "difficulty": "chill",
+      "touch": true
+    },
+    {
+      "slug": "lava_lamp",
+      "title": "Lava Lamp",
+      "description": "Six metaball blobs of goo melt into each other, kept circulating by heat.",
+      "controls": [
+        ["Click", "Poke the goo"],
+        ["Z / X", "Blob count"]
+      ],
+      "tags": ["toy", "ambient", "generative"],
+      "added": "2026-06-09",
+      "difficulty": "chill",
+      "touch": true
+    },
+    {
+      "slug": "koi_pond",
+      "title": "Koi Pond",
+      "description": "Four koi drift as flexing chains of circles, nosing toward ripples. Tap the water and watch them come.",
+      "controls": [
+        ["Click / Tap", "Ripple the water"]
+      ],
+      "tags": ["toy", "ambient", "sim"],
+      "added": "2026-06-09",
+      "difficulty": "chill",
+      "touch": true
+    }
+  ]
+}

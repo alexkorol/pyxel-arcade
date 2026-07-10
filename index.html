@@ -1,14 +1,73 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Pyxel Arcade</title>
-    <link rel="stylesheet" type="text/css" href="styles.css">
+    <meta name="description" content="A pocket arcade of pure-Python Pyxel games and toys, playable right in your browser.">
+    <meta property="og:title" content="Pyxel Arcade">
+    <meta property="og:description" content="A pocket arcade of pure-Python Pyxel games and toys, playable right in your browser.">
+    <meta property="og:image" content="https://alexkorol.github.io/pyxel-arcade/demos/noita_demake.png">
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="assets/icon-32.png" sizes="32x32" type="image/png">
+    <link rel="apple-touch-icon" href="assets/icon-180.png">
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <h1>Pyxel Game Showcase</h1>
-    <div id="game-list">
-        <!-- Game entries will be populated here -->
-    </div>
+    <div class="crt"></div>
+
+    <header class="site-header">
+        <a class="logo" href="#/">PYXEL<span class="logo-accent">ARCADE</span></a>
+        <p class="tagline">tiny games &amp; toys in pure python &mdash; playable in your browser</p>
+    </header>
+
+    <main id="view-arcade">
+        <nav class="toolbar" aria-label="Filter and sort games">
+            <input id="search" type="search" placeholder="search&hellip;" aria-label="Search games">
+            <div id="tag-chips" class="chips" role="group" aria-label="Filter by tag"></div>
+            <div class="toolbar-right">
+                <select id="sort" aria-label="Sort games">
+                    <option value="newest">newest</option>
+                    <option value="alpha">a &rarr; z</option>
+                    <option value="random">random</option>
+                </select>
+                <button id="surprise" class="btn btn-accent" type="button">surprise me</button>
+            </div>
+        </nav>
+        <p id="result-count" class="result-count" role="status"></p>
+        <div id="game-grid" class="game-grid"></div>
+    </main>
+
+    <section id="view-play" hidden>
+        <div class="play-bar">
+            <a class="btn" href="#/">&larr; arcade</a>
+            <h2 id="play-title"></h2>
+            <div class="play-bar-right">
+                <a id="play-code" class="btn" target="_blank" rel="noopener">code</a>
+                <button id="play-fullscreen" class="btn btn-accent" type="button">fullscreen</button>
+            </div>
+        </div>
+        <div class="play-stage">
+            <div class="play-frame-wrap">
+                <iframe id="play-frame" title="Game" allow="fullscreen; autoplay" allowfullscreen></iframe>
+            </div>
+            <aside class="play-side">
+                <h3>controls</h3>
+                <table id="play-controls" class="controls-table"></table>
+                <p id="play-desc" class="play-desc"></p>
+                <div id="play-tags" class="chips chips-static"></div>
+                <p class="play-hint">Click the game once so it grabs your keyboard.</p>
+            </aside>
+        </div>
+    </section>
+
+    <footer class="site-footer">
+        <p>
+            Every cartridge is one dependency-free <code>.py</code> file, run in-browser by the
+            <a href="https://github.com/kitao/pyxel" target="_blank" rel="noopener">Pyxel</a> web launcher.
+            <a href="https://github.com/alexkorol/pyxel-arcade" target="_blank" rel="noopener">Source &amp; contributions</a> &mdash; MIT.
+        </p>
+    </footer>
 
     <script src="script.js"></script>
 </body>

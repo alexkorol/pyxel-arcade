@@ -1,138 +1,236 @@
-// List of Pyxel games
-// Demo links run via the Pyxel Web Launcher, which loads each .py straight
-// from this GitHub repo (user/repo/branch/path resolves to the latest
-// master commit, so pushed updates are playable immediately).
-var LAUNCHER = 'https://kitao.github.io/pyxel/web/launcher/?run=alexkorol/pyxel-arcade/master/demos/';
-var games = [
-    {
-        title: 'Noita Demake',
-        description: 'A pocket wand-and-powder cave crawl: pixel liquids, fire, toxic sludge, gold, procedural biomes, enemies, spell slots, wand stats, flask pouring, Holy Mountain shops, and a final Sampo shard escape. A/D move, W levitates, mouse aims, click/Z casts, F pours, Tab edits wands.',
-        image: 'demos/noita_demake.png',
-        demoUrl: LAUNCHER + 'noita_demake',
-        codeUrl: 'https://github.com/alexkorol/pyxel-arcade/blob/master/demos/noita_demake.py',
-    },
-    {
-        title: 'Cymatic',
-        description: 'A playable Chladni plate: sand drains onto the nodal lines of a vibrating square, drawing each (m,n) resonance figure. Drag or use arrows to tune the mode, SPACE shuffles, P steps presets, S toggles sound.',
-        image: 'demos/cymatic.png',
-        demoUrl: LAUNCHER + 'cymatic',
-        codeUrl: 'https://github.com/alexkorol/pyxel-arcade/blob/master/demos/cymatic.py',
-    },
-    {
-        title: 'Hill Fort',
-        description: 'A tiny fortress roguelite: start outside, dig into a hill, manage civilian and militia dwarves, hunt, fish, cook, craft, build workshops and stairs, and survive endless escalating raids. Arrows move, D designates, B builds, Q/E changes depth.',
-        image: 'demos/hill_fort.png',
-        demoUrl: LAUNCHER + 'hill_fort',
-        codeUrl: 'https://github.com/alexkorol/pyxel-arcade/blob/master/demos/hill_fort.py',
-    },
-    {
-        title: 'Stone Ledger',
-        description: 'A pocket world forge and legends viewer: value-noise continents, rivers, biomes, civ sites, roads, artifacts, wars, disasters, and a browseable event timeline. R rerolls, Enter forges, Tab flips map/biome/civ/legends/history.',
-        image: 'demos/stone_ledger.png',
-        demoUrl: LAUNCHER + 'stone_ledger',
-        codeUrl: 'https://github.com/alexkorol/pyxel-arcade/blob/master/demos/stone_ledger.py',
-    },
-    {
-        title: 'Shell Lab',
-        description: "Elementary cellular automata grown into seashells -- the textile cone really does wear Wolfram's Rule 30. Dial any rule 0-255, pick a specimen palette, and watch the shell draw itself tip to aperture. Arrows change rule/specimen, click the preview thumbs; S/W/R/[ ] seed and pace it.",
-        image: 'demos/shell_lab.png',
-        demoUrl: LAUNCHER + 'shell_lab',
-        codeUrl: 'https://github.com/alexkorol/pyxel-arcade/blob/master/demos/shell_lab.py',
-    },
-    {
-        title: 'Undervault',
-        description: 'A room-by-room dungeon dive with depth lanes, torch-lit walls, and bump combat. Fight down eight strata for the Ember Crown. Arrows/WASD or click; I, L, C, H open screens.',
-        image: 'demos/undervault.png',
-        demoUrl: LAUNCHER + 'undervault',
-        codeUrl: 'https://github.com/alexkorol/pyxel-arcade/blob/master/demos/undervault.py',
-    },
-    {
-        title: 'Starlance',
-        description: 'A wireframe space dogfighter with an FTL-style run: lasers overheat, missiles need a lock, credits drift out of every kill. Eight jumps, waystation shops, one carrier. Mouse steers, SPACE lasers, M missile.',
-        image: 'demos/starlance.png',
-        demoUrl: LAUNCHER + 'starlance',
-        codeUrl: 'https://github.com/alexkorol/pyxel-arcade/blob/master/demos/starlance.py',
-    },
-    {
-        title: 'Color Mycelium',
-        description: 'Branching hyphae paint slow rainbow threads. Click to plant spores, C cycles palettes, F toggles fade.',
-        image: 'demos/color_mycelium.png',
-        demoUrl: LAUNCHER + 'color_mycelium',
-        codeUrl: 'https://github.com/alexkorol/pyxel-arcade/blob/master/demos/color_mycelium.py',
-    },
-    {
-        title: 'Mycelium Garden',
-        description: 'Hyphae forage for nutrients, fatten up, and fruit into mushrooms that puff spores. Click to feed the network.',
-        image: 'demos/mycelium_garden.png',
-        demoUrl: LAUNCHER + 'mycelium_garden',
-        codeUrl: 'https://github.com/alexkorol/pyxel-arcade/blob/master/demos/mycelium_garden.py',
-    },
-    {
-        title: 'Powder Box',
-        description: 'A falling-sand sandbox: sand, water, walls, plants, and fire. Paint with the mouse, keys 1-5 pick elements.',
-        image: 'demos/powder_box.png',
-        demoUrl: LAUNCHER + 'powder_box',
-        codeUrl: 'https://github.com/alexkorol/pyxel-arcade/blob/master/demos/powder_box.py',
-    },
-    {
-        title: 'Terrarium',
-        description: 'A glass jar of tiny leaf-headed pips that trot, hop, and float. Drop berries, watch eggs hatch, fireflies at night.',
-        image: 'demos/terrarium.png',
-        demoUrl: LAUNCHER + 'terrarium',
-        codeUrl: 'https://github.com/alexkorol/pyxel-arcade/blob/master/demos/terrarium.py',
-    },
-    {
-        title: 'Physarum',
-        description: 'A slime mold of 320 blind agents builds veiny transport networks out of nothing. Hold click to drop food scent.',
-        image: 'demos/physarum.png',
-        demoUrl: LAUNCHER + 'physarum',
-        codeUrl: 'https://github.com/alexkorol/pyxel-arcade/blob/master/demos/physarum.py',
-    },
-    {
-        title: 'Hex Bloom',
-        description: 'Snowflake crystals bloom on a hexagonal grid via the Ulam-Warburton rule. Click to seed, U swaps flake/coral.',
-        image: 'demos/hex_bloom.png',
-        demoUrl: LAUNCHER + 'hex_bloom',
-        codeUrl: 'https://github.com/alexkorol/pyxel-arcade/blob/master/demos/hex_bloom.py',
-    },
-    {
-        title: 'Oculus Garden',
-        description: 'A moonlit bed of eye-stalks that sway, track your cursor, and get shy if you stare. Click soil to grow more.',
-        image: 'demos/oculus_garden.png',
-        demoUrl: LAUNCHER + 'oculus_garden',
-        codeUrl: 'https://github.com/alexkorol/pyxel-arcade/blob/master/demos/oculus_garden.py',
-    },
-    {
-        title: 'Lava Lamp',
-        description: 'Six metaball blobs of goo melt into each other, kept circulating by heat. Click to poke, Z/X change blob count.',
-        image: 'demos/lava_lamp.png',
-        demoUrl: LAUNCHER + 'lava_lamp',
-        codeUrl: 'https://github.com/alexkorol/pyxel-arcade/blob/master/demos/lava_lamp.py',
-    },
-    {
-        title: 'Koi Pond',
-        description: 'Four koi drift as flexing chains of circles, nosing toward ripples. Tap the water and watch them come.',
-        image: 'demos/koi_pond.png',
-        demoUrl: LAUNCHER + 'koi_pond',
-        codeUrl: 'https://github.com/alexkorol/pyxel-arcade/blob/master/demos/koi_pond.py',
-    },
-];
+// Pyxel Arcade — catalog + in-page player.
+// All game data lives in demos/manifest.json; demos run via the Pyxel Web
+// Launcher, which loads each .py straight from this repo (master resolves to
+// the latest commit, so pushed updates are playable immediately).
 
-// Get the game list container
-var gameList = document.getElementById('game-list');
+(function () {
+    'use strict';
 
-// Populate the game list
-games.forEach(function(game) {
-    var gameCard = document.createElement('div');
-    gameCard.className = 'game-card';
+    var state = {
+        manifest: null,
+        games: [],
+        activeTags: new Set(),
+        query: '',
+        sort: 'newest',
+        randomOrder: null,
+    };
 
-    gameCard.innerHTML = `
-        <h2>${game.title}</h2>
-        <img src="${game.image}" alt="${game.title}">
-        <p>${game.description}</p>
-        <a href="${game.demoUrl}" target="_blank">Demo</a> |
-        <a href="${game.codeUrl}" target="_blank">Code</a>
-    `;
+    var el = {
+        arcade: document.getElementById('view-arcade'),
+        play: document.getElementById('view-play'),
+        grid: document.getElementById('game-grid'),
+        chips: document.getElementById('tag-chips'),
+        search: document.getElementById('search'),
+        sort: document.getElementById('sort'),
+        surprise: document.getElementById('surprise'),
+        count: document.getElementById('result-count'),
+        playTitle: document.getElementById('play-title'),
+        playFrame: document.getElementById('play-frame'),
+        playControls: document.getElementById('play-controls'),
+        playDesc: document.getElementById('play-desc'),
+        playTags: document.getElementById('play-tags'),
+        playCode: document.getElementById('play-code'),
+        playFullscreen: document.getElementById('play-fullscreen'),
+    };
 
-    gameList.appendChild(gameCard);
-});
+    // ---- data ------------------------------------------------------
+
+    fetch('demos/manifest.json')
+        .then(function (r) {
+            if (!r.ok) throw new Error('manifest fetch failed: ' + r.status);
+            return r.json();
+        })
+        .then(function (manifest) {
+            state.manifest = manifest;
+            state.games = manifest.games;
+            buildTagChips();
+            bindToolbar();
+            window.addEventListener('hashchange', route);
+            route();
+        })
+        .catch(function (err) {
+            el.grid.innerHTML = '<p class="empty-note">Could not load the game list (' +
+                escapeHtml(String(err.message || err)) + '). Try refreshing.</p>';
+        });
+
+    function findGame(slug) {
+        return state.games.find(function (g) { return g.slug === slug; });
+    }
+
+    function codeUrl(game) {
+        return state.manifest.repo + '/blob/master/demos/' + game.slug + '.py';
+    }
+
+    // ---- routing ---------------------------------------------------
+
+    function route() {
+        var hash = location.hash || '#/';
+        var m = hash.match(/^#\/game\/([a-z0-9_]+)/);
+        var game = m ? findGame(m[1]) : null;
+        if (game) {
+            showPlay(game);
+        } else {
+            if (m) location.hash = '#/'; // unknown slug: fall back to grid
+            showArcade();
+        }
+    }
+
+    function showArcade() {
+        // Drop the iframe src so the game (and its audio) actually stops.
+        el.playFrame.removeAttribute('src');
+        el.play.hidden = true;
+        el.arcade.hidden = false;
+        document.title = 'Pyxel Arcade';
+        render();
+    }
+
+    function showPlay(game) {
+        el.arcade.hidden = true;
+        el.play.hidden = false;
+        document.title = game.title + ' — Pyxel Arcade';
+
+        el.playTitle.textContent = game.title;
+        el.playDesc.textContent = game.description;
+        el.playCode.href = codeUrl(game);
+
+        el.playControls.innerHTML = game.controls.map(function (pair) {
+            return '<tr><td>' + escapeHtml(pair[0]) + '</td><td>' +
+                escapeHtml(pair[1]) + '</td></tr>';
+        }).join('');
+
+        el.playTags.innerHTML = game.tags.map(function (t) {
+            return '<span class="chip">' + escapeHtml(t) + '</span>';
+        }).join('');
+
+        var src = state.manifest.launcher + game.slug;
+        if (el.playFrame.getAttribute('src') !== src) {
+            el.playFrame.setAttribute('src', src);
+        }
+        window.scrollTo(0, 0);
+    }
+
+    el.playFullscreen.addEventListener('click', function () {
+        var frame = el.playFrame;
+        if (frame.requestFullscreen) frame.requestFullscreen();
+        else if (frame.webkitRequestFullscreen) frame.webkitRequestFullscreen();
+    });
+
+    // ---- toolbar ---------------------------------------------------
+
+    function buildTagChips() {
+        var tags = new Set();
+        state.games.forEach(function (g) {
+            g.tags.forEach(function (t) { tags.add(t); });
+        });
+        el.chips.innerHTML = '';
+        Array.from(tags).sort().forEach(function (tag) {
+            var chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = 'chip';
+            chip.textContent = tag;
+            chip.addEventListener('click', function () {
+                if (state.activeTags.has(tag)) state.activeTags.delete(tag);
+                else state.activeTags.add(tag);
+                chip.classList.toggle('on');
+                render();
+            });
+            el.chips.appendChild(chip);
+        });
+    }
+
+    function bindToolbar() {
+        el.search.addEventListener('input', function () {
+            state.query = el.search.value.trim().toLowerCase();
+            render();
+        });
+        el.sort.addEventListener('change', function () {
+            state.sort = el.sort.value;
+            if (state.sort === 'random') state.randomOrder = null;
+            render();
+        });
+        el.surprise.addEventListener('click', function () {
+            var pool = visibleGames();
+            if (!pool.length) pool = state.games;
+            var pick = pool[Math.floor(Math.random() * pool.length)];
+            location.hash = '#/game/' + pick.slug;
+        });
+    }
+
+    // ---- grid rendering --------------------------------------------
+
+    function visibleGames() {
+        return state.games.filter(function (g) {
+            if (state.activeTags.size) {
+                var hasAll = Array.from(state.activeTags).every(function (t) {
+                    return g.tags.indexOf(t) !== -1;
+                });
+                if (!hasAll) return false;
+            }
+            if (state.query) {
+                var hay = (g.title + ' ' + g.description + ' ' + g.tags.join(' ')).toLowerCase();
+                if (hay.indexOf(state.query) === -1) return false;
+            }
+            return true;
+        });
+    }
+
+    function sortGames(list) {
+        var out = list.slice();
+        if (state.sort === 'alpha') {
+            out.sort(function (a, b) { return a.title.localeCompare(b.title); });
+        } else if (state.sort === 'random') {
+            if (!state.randomOrder) {
+                state.randomOrder = {};
+                state.games.forEach(function (g) {
+                    state.randomOrder[g.slug] = Math.random();
+                });
+            }
+            var order = state.randomOrder;
+            out.sort(function (a, b) { return order[a.slug] - order[b.slug]; });
+        } else { // newest
+            out.sort(function (a, b) { return b.added.localeCompare(a.added); });
+        }
+        return out;
+    }
+
+    function render() {
+        var list = sortGames(visibleGames());
+        el.count.textContent = list.length === state.games.length
+            ? state.games.length + ' cartridges'
+            : list.length + ' of ' + state.games.length + ' cartridges';
+
+        if (!list.length) {
+            el.grid.innerHTML = '<p class="empty-note">Nothing matches — clear a filter or two.</p>';
+            return;
+        }
+
+        el.grid.innerHTML = list.map(cardHtml).join('');
+    }
+
+    function cardHtml(game) {
+        var playHref = '#/game/' + game.slug;
+        var tags = game.tags.map(function (t) {
+            return '<span class="tag">' + escapeHtml(t) + '</span>';
+        }).join('');
+        if (game.touch) tags += '<span class="tag tag-touch">touch ok</span>';
+
+        return '<article class="game-card">' +
+            '<a class="card-thumb" href="' + playHref + '" aria-label="Play ' + escapeHtml(game.title) + '">' +
+            '<img src="demos/' + game.slug + '.png" alt="' + escapeHtml(game.title) + ' screenshot" loading="lazy">' +
+            '</a>' +
+            '<div class="card-body">' +
+            '<h2 class="card-title"><a href="' + playHref + '">' + escapeHtml(game.title) + '</a></h2>' +
+            '<p class="card-desc">' + escapeHtml(game.description) + '</p>' +
+            '<div class="card-meta">' + tags + '</div>' +
+            '<div class="card-links">' +
+            '<a href="' + playHref + '">play</a>' +
+            '<a href="' + codeUrl(game) + '" target="_blank" rel="noopener">code</a>' +
+            '</div></div></article>';
+    }
+
+    function escapeHtml(s) {
+        return s.replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+})();
