@@ -46,6 +46,7 @@
             state.games = manifest.games;
             buildTagChips();
             bindToolbar();
+            buildDailyBanner();
             window.addEventListener('hashchange', route);
             route();
         })
@@ -58,6 +59,35 @@
         return state.games.find(function (g) { return g.slug === slug; });
     }
 
+    // ---- local play stats & daily challenge -------------------------
+
+    function loadPlays() {
+        try { return JSON.parse(localStorage.getItem('arcade.plays')) || {}; }
+        catch (e) { return {}; }
+    }
+
+    function trackPlay(slug) {
+        var plays = loadPlays();
+        var rec = plays[slug] || { n: 0 };
+        rec.n += 1;
+        rec.last = Date.now();
+        plays[slug] = rec;
+        try { localStorage.setItem('arcade.plays', JSON.stringify(plays)); } catch (e) {}
+    }
+
+    function todayKey() {
+        var d = new Date();
+        return d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
+    }
+
+    // Everyone who visits on the same (UTC) day gets the same cartridge and,
+    // for seed-aware games, the same world seed.
+    function dailyGame() {
+        var seeded = state.games.filter(function (g) { return g.seeded; });
+        var pool = seeded.length ? seeded : state.games;
+        return pool[todayKey() % pool.length];
+    }
+
     function codeUrl(game) {
         return state.manifest.repo + '/blob/master/demos/' + game.slug + '.py';
     }
@@ -66,6 +96,10 @@
 
     function route() {
         var hash = location.hash || '#/';
+        if (/^#\/daily\b/.test(hash)) {
+            showPlay(dailyGame(), { seed: todayKey(), daily: true });
+            return;
+        }
         var m = hash.match(/^#\/game\/([a-z0-9_]+)/);
         var game = m ? findGame(m[1]) : null;
         if (game) {
@@ -85,13 +119,19 @@
         render();
     }
 
-    function showPlay(game) {
+    function showPlay(game, opts) {
+        opts = opts || {};
         el.arcade.hidden = true;
         el.play.hidden = false;
         document.title = game.title + ' — Pyxel Arcade';
 
-        el.playTitle.textContent = game.title;
-        el.playDesc.textContent = game.description;
+        el.playTitle.textContent = opts.daily
+            ? game.title + ' — daily world'
+            : game.title;
+        el.playDesc.textContent = opts.daily
+            ? 'Today’s shared seed: everyone forging the daily world gets this exact one. ' +
+              game.description
+            : game.description;
         el.playCode.href = codeUrl(game);
 
         el.playControls.innerHTML = game.controls.map(function (pair) {
@@ -104,8 +144,10 @@
         }).join('');
 
         var src = state.manifest.launcher + game.slug;
+        if (opts.seed) src += '&seed=' + opts.seed;
         if (el.playFrame.getAttribute('src') !== src) {
             el.playFrame.setAttribute('src', src);
+            trackPlay(game.slug);
         }
         window.scrollTo(0, 0);
     }
@@ -119,10 +161,15 @@
     // Share links point at the static OG page (games/<slug>.html) so the
     // pasted URL unfurls with a preview image; it redirects humans back here.
     el.playShare.addEventListener('click', function () {
-        var m = location.hash.match(/^#\/game\/([a-z0-9_]+)/);
-        if (!m) return;
-        var url = location.href.split('#')[0].replace(/index\.html$/, '') +
-            'games/' + m[1] + '.html';
+        var base = location.href.split('#')[0].replace(/index\.html$/, '');
+        var url;
+        if (/^#\/daily\b/.test(location.hash)) {
+            url = base + '#/daily';
+        } else {
+            var m = location.hash.match(/^#\/game\/([a-z0-9_]+)/);
+            if (!m) return;
+            url = base + 'games/' + m[1] + '.html';
+        }
         var done = function () {
             el.playShare.textContent = 'copied!';
             setTimeout(function () { el.playShare.textContent = 'share'; }, 1500);
@@ -175,6 +222,16 @@
             var pick = pool[Math.floor(Math.random() * pool.length)];
             location.hash = '#/game/' + pick.slug;
         });
+    }
+
+    function buildDailyBanner() {
+        var banner = document.getElementById('daily-banner');
+        var game = dailyGame();
+        if (!game) return;
+        banner.innerHTML = '<span class="daily-label">daily world</span> ' +
+            escapeHtml(game.title) +
+            ' <span class="daily-sub">— same seed for everyone today. can your legends beat theirs?</span>';
+        banner.hidden = false;
     }
 
     // ---- grid rendering --------------------------------------------
@@ -234,6 +291,10 @@
             return '<span class="tag">' + escapeHtml(t) + '</span>';
         }).join('');
         if (game.touch) tags += '<span class="tag tag-touch">touch ok</span>';
+        var rec = loadPlays()[game.slug];
+        if (rec && rec.n) {
+            tags += '<span class="tag tag-played">played ×' + rec.n + '</span>';
+        }
 
         return '<article class="game-card">' +
             '<a class="card-thumb" href="' + playHref + '" aria-label="Play ' + escapeHtml(game.title) + '">' +

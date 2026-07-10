@@ -24,7 +24,9 @@ import sys
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DEMOS = os.path.join(ROOT, "demos")
 
-ALLOWED_EXTRA = {"pyxel"}
+# "js" exists only in Pyodide (the web launcher); demos may import it inside
+# a try/except for web-only features like the daily seed, never at top level.
+ALLOWED_EXTRA = {"pyxel", "js"}
 SMOKE_TICKS = 120
 
 errors = []

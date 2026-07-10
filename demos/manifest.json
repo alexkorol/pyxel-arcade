@@ -61,7 +61,8 @@
       "tags": ["toy", "sim", "procgen"],
       "added": "2026-06-25",
       "difficulty": "chill",
-      "touch": false
+      "touch": false,
+      "seeded": true
     },
     {
       "slug": "shell_lab",

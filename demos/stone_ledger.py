@@ -815,12 +815,26 @@ class World:
             region.danger = int(danger / max(1, len(region.tiles)) * 100)
 
 
+def _url_seed():
+    """Daily-challenge hook: the arcade appends &seed=<n> to the launcher
+    URL so everyone forges the same world. `js` only exists in Pyodide;
+    on desktop this quietly returns None."""
+    try:
+        from js import window
+        import re
+        m = re.search(r"[?&]seed=(\d+)", str(window.location.search))
+        return int(m.group(1)) % 0x10000000 if m else None
+    except Exception:
+        return None
+
+
 class App:
     def __init__(self):
         pyxel.init(W, H, title="stone ledger", fps=30, quit_key=pyxel.KEY_NONE)
         pyxel.mouse(True)
         pyxel.colors[:] = PALETTE
-        self.seed = random.randrange(0x10000000)
+        seed = _url_seed()
+        self.seed = seed if seed is not None else random.randrange(0x10000000)
         self.age_i = 2
         self.rain = 3
         self.temp = 3

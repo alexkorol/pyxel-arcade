@@ -152,6 +152,31 @@ select {
 .btn-accent { border-color: var(--accent); color: var(--accent); }
 .btn-accent:hover { box-shadow: var(--glow); }
 
+.daily-banner {
+    display: block;
+    background: linear-gradient(90deg, rgba(255, 79, 163, 0.12), rgba(67, 255, 173, 0.10));
+    border: 1px solid var(--accent-2);
+    border-radius: var(--radius);
+    color: var(--ink);
+    font-size: 0.85rem;
+    margin: 8px 0 4px;
+    padding: 10px 14px;
+}
+.daily-banner:hover {
+    text-decoration: none;
+    box-shadow: 0 0 12px rgba(255, 79, 163, 0.35);
+}
+.daily-label {
+    color: var(--accent-2);
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-right: 8px;
+}
+.daily-sub { color: var(--ink-dim); }
+
+.tag-played { border-color: var(--accent); color: var(--accent); }
+
 .result-count {
     color: var(--ink-dim);
     font-size: 0.75rem;
