@@ -1,0 +1,217 @@
+{
+  "version": "https://jsonfeed.org/version/1.1",
+  "title": "Pyxel Arcade \u2014 new cartridges",
+  "home_page_url": "https://alexkorol.github.io/pyxel-arcade/",
+  "feed_url": "https://alexkorol.github.io/pyxel-arcade/feed.json",
+  "description": "Tiny games & toys in pure Python, playable in your browser.",
+  "items": [
+    {
+      "id": "https://alexkorol.github.io/pyxel-arcade/games/cymatic.html",
+      "url": "https://alexkorol.github.io/pyxel-arcade/games/cymatic.html",
+      "title": "Cymatic",
+      "content_text": "A playable Chladni plate: sand drains onto the nodal lines of a vibrating square, drawing each (m,n) resonance figure.",
+      "image": "https://alexkorol.github.io/pyxel-arcade/demos/cymatic.png",
+      "date_published": "2026-07-04T00:00:00Z",
+      "tags": [
+        "toy",
+        "sim",
+        "audio"
+      ]
+    },
+    {
+      "id": "https://alexkorol.github.io/pyxel-arcade/games/noita_demake.html",
+      "url": "https://alexkorol.github.io/pyxel-arcade/games/noita_demake.html",
+      "title": "Noita Demake",
+      "content_text": "A pocket wand-and-powder cave crawl: pixel liquids, fire, toxic sludge, gold, procedural biomes, enemies, spell slots, wand stats, flask pouring, Holy Mountain shops, and a final Sampo shard escape.",
+      "image": "https://alexkorol.github.io/pyxel-arcade/demos/noita_demake.png",
+      "date_published": "2026-06-26T00:00:00Z",
+      "tags": [
+        "game",
+        "action",
+        "roguelite",
+        "sandbox"
+      ]
+    },
+    {
+      "id": "https://alexkorol.github.io/pyxel-arcade/games/hill_fort.html",
+      "url": "https://alexkorol.github.io/pyxel-arcade/games/hill_fort.html",
+      "title": "Hill Fort",
+      "content_text": "A tiny fortress roguelite: start outside, dig into a hill, manage civilian and militia dwarves, hunt, fish, cook, craft, build workshops and stairs, and survive endless escalating raids.",
+      "image": "https://alexkorol.github.io/pyxel-arcade/demos/hill_fort.png",
+      "date_published": "2026-06-25T00:00:00Z",
+      "tags": [
+        "game",
+        "sim",
+        "strategy",
+        "roguelite"
+      ]
+    },
+    {
+      "id": "https://alexkorol.github.io/pyxel-arcade/games/stone_ledger.html",
+      "url": "https://alexkorol.github.io/pyxel-arcade/games/stone_ledger.html",
+      "title": "Stone Ledger",
+      "content_text": "A pocket world forge and legends viewer: value-noise continents, rivers, biomes, civ sites, roads, artifacts, wars, disasters, and a browseable event timeline.",
+      "image": "https://alexkorol.github.io/pyxel-arcade/demos/stone_ledger.png",
+      "date_published": "2026-06-25T00:00:00Z",
+      "tags": [
+        "toy",
+        "sim",
+        "procgen"
+      ]
+    },
+    {
+      "id": "https://alexkorol.github.io/pyxel-arcade/games/shell_lab.html",
+      "url": "https://alexkorol.github.io/pyxel-arcade/games/shell_lab.html",
+      "title": "Shell Lab",
+      "content_text": "Elementary cellular automata grown into seashells \u2014 the textile cone really does wear Wolfram's Rule 30. Dial any rule 0-255, pick a specimen palette, and watch the shell draw itself tip to aperture.",
+      "image": "https://alexkorol.github.io/pyxel-arcade/demos/shell_lab.png",
+      "date_published": "2026-06-25T00:00:00Z",
+      "tags": [
+        "toy",
+        "automata",
+        "generative"
+      ]
+    },
+    {
+      "id": "https://alexkorol.github.io/pyxel-arcade/games/undervault.html",
+      "url": "https://alexkorol.github.io/pyxel-arcade/games/undervault.html",
+      "title": "Undervault",
+      "content_text": "A room-by-room dungeon dive with depth lanes, torch-lit walls, and bump combat. Fight down eight strata for the Ember Crown.",
+      "image": "https://alexkorol.github.io/pyxel-arcade/demos/undervault.png",
+      "date_published": "2026-06-09T00:00:00Z",
+      "tags": [
+        "game",
+        "roguelite"
+      ]
+    },
+    {
+      "id": "https://alexkorol.github.io/pyxel-arcade/games/starlance.html",
+      "url": "https://alexkorol.github.io/pyxel-arcade/games/starlance.html",
+      "title": "Starlance",
+      "content_text": "A wireframe space dogfighter with an FTL-style run: lasers overheat, missiles need a lock, credits drift out of every kill. Eight jumps, waystation shops, one carrier.",
+      "image": "https://alexkorol.github.io/pyxel-arcade/demos/starlance.png",
+      "date_published": "2026-06-09T00:00:00Z",
+      "tags": [
+        "game",
+        "action"
+      ]
+    },
+    {
+      "id": "https://alexkorol.github.io/pyxel-arcade/games/mycelium_garden.html",
+      "url": "https://alexkorol.github.io/pyxel-arcade/games/mycelium_garden.html",
+      "title": "Mycelium Garden",
+      "content_text": "Hyphae forage for nutrients, fatten up, and fruit into mushrooms that puff spores.",
+      "image": "https://alexkorol.github.io/pyxel-arcade/demos/mycelium_garden.png",
+      "date_published": "2026-06-09T00:00:00Z",
+      "tags": [
+        "toy",
+        "sim",
+        "generative"
+      ]
+    },
+    {
+      "id": "https://alexkorol.github.io/pyxel-arcade/games/powder_box.html",
+      "url": "https://alexkorol.github.io/pyxel-arcade/games/powder_box.html",
+      "title": "Powder Box",
+      "content_text": "A falling-sand sandbox: sand, water, walls, plants, and fire.",
+      "image": "https://alexkorol.github.io/pyxel-arcade/demos/powder_box.png",
+      "date_published": "2026-06-09T00:00:00Z",
+      "tags": [
+        "toy",
+        "sandbox",
+        "sim"
+      ]
+    },
+    {
+      "id": "https://alexkorol.github.io/pyxel-arcade/games/terrarium.html",
+      "url": "https://alexkorol.github.io/pyxel-arcade/games/terrarium.html",
+      "title": "Terrarium",
+      "content_text": "A glass jar of tiny leaf-headed pips that trot, hop, and float. Drop berries, watch eggs hatch, fireflies at night.",
+      "image": "https://alexkorol.github.io/pyxel-arcade/demos/terrarium.png",
+      "date_published": "2026-06-09T00:00:00Z",
+      "tags": [
+        "toy",
+        "sim",
+        "ambient"
+      ]
+    },
+    {
+      "id": "https://alexkorol.github.io/pyxel-arcade/games/physarum.html",
+      "url": "https://alexkorol.github.io/pyxel-arcade/games/physarum.html",
+      "title": "Physarum",
+      "content_text": "A slime mold of 320 blind agents builds veiny transport networks out of nothing.",
+      "image": "https://alexkorol.github.io/pyxel-arcade/demos/physarum.png",
+      "date_published": "2026-06-09T00:00:00Z",
+      "tags": [
+        "toy",
+        "sim",
+        "automata"
+      ]
+    },
+    {
+      "id": "https://alexkorol.github.io/pyxel-arcade/games/hex_bloom.html",
+      "url": "https://alexkorol.github.io/pyxel-arcade/games/hex_bloom.html",
+      "title": "Hex Bloom",
+      "content_text": "Snowflake crystals bloom on a hexagonal grid via the Ulam-Warburton rule.",
+      "image": "https://alexkorol.github.io/pyxel-arcade/demos/hex_bloom.png",
+      "date_published": "2026-06-09T00:00:00Z",
+      "tags": [
+        "toy",
+        "automata",
+        "generative"
+      ]
+    },
+    {
+      "id": "https://alexkorol.github.io/pyxel-arcade/games/oculus_garden.html",
+      "url": "https://alexkorol.github.io/pyxel-arcade/games/oculus_garden.html",
+      "title": "Oculus Garden",
+      "content_text": "A moonlit bed of eye-stalks that sway, track your cursor, and get shy if you stare.",
+      "image": "https://alexkorol.github.io/pyxel-arcade/demos/oculus_garden.png",
+      "date_published": "2026-06-09T00:00:00Z",
+      "tags": [
+        "toy",
+        "ambient",
+        "generative"
+      ]
+    },
+    {
+      "id": "https://alexkorol.github.io/pyxel-arcade/games/lava_lamp.html",
+      "url": "https://alexkorol.github.io/pyxel-arcade/games/lava_lamp.html",
+      "title": "Lava Lamp",
+      "content_text": "Six metaball blobs of goo melt into each other, kept circulating by heat.",
+      "image": "https://alexkorol.github.io/pyxel-arcade/demos/lava_lamp.png",
+      "date_published": "2026-06-09T00:00:00Z",
+      "tags": [
+        "toy",
+        "ambient",
+        "generative"
+      ]
+    },
+    {
+      "id": "https://alexkorol.github.io/pyxel-arcade/games/koi_pond.html",
+      "url": "https://alexkorol.github.io/pyxel-arcade/games/koi_pond.html",
+      "title": "Koi Pond",
+      "content_text": "Four koi drift as flexing chains of circles, nosing toward ripples. Tap the water and watch them come.",
+      "image": "https://alexkorol.github.io/pyxel-arcade/demos/koi_pond.png",
+      "date_published": "2026-06-09T00:00:00Z",
+      "tags": [
+        "toy",
+        "ambient",
+        "sim"
+      ]
+    },
+    {
+      "id": "https://alexkorol.github.io/pyxel-arcade/games/color_mycelium.html",
+      "url": "https://alexkorol.github.io/pyxel-arcade/games/color_mycelium.html",
+      "title": "Color Mycelium",
+      "content_text": "Branching hyphae paint slow rainbow threads.",
+      "image": "https://alexkorol.github.io/pyxel-arcade/demos/color_mycelium.png",
+      "date_published": "2023-06-05T00:00:00Z",
+      "tags": [
+        "toy",
+        "generative",
+        "ambient"
+      ]
+    }
+  ]
+}

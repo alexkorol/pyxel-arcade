@@ -312,6 +312,10 @@
             '</div></div></article>';
     }
 
+    if ('serviceWorker' in navigator && location.protocol === 'https:') {
+        navigator.serviceWorker.register('sw.js').catch(function () {});
+    }
+
     function escapeHtml(s) {
         return s.replace(/[&<>"']/g, function (c) {
             return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];

@@ -57,11 +57,9 @@ def make_svg(path):
 if __name__ == "__main__":
     os.makedirs(ASSETS, exist_ok=True)
     make_svg(os.path.join(ASSETS, "favicon.svg"))
-    make_png(4, 1, os.path.join(ASSETS, "icon-32.png"))   # 40 -> resize below
-    make_png(18, 1, os.path.join(ASSETS, "icon-180.png"))
-    # exact 32px: rescale the 40px render with nearest neighbour
-    img = Image.open(os.path.join(ASSETS, "icon-32.png"))
-    img.resize((32, 32), Image.NEAREST).save(os.path.join(ASSETS, "icon-32.png"))
-    img = Image.open(os.path.join(ASSETS, "icon-180.png"))
-    img.resize((180, 180), Image.NEAREST).save(os.path.join(ASSETS, "icon-180.png"))
+    for size in (32, 180, 192, 512):
+        path = os.path.join(ASSETS, f"icon-{size}.png")
+        make_png(max(1, size // 10), 1, path)
+        img = Image.open(path)
+        img.resize((size, size), Image.NEAREST).save(path)
     print("done")

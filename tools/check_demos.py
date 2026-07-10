@@ -89,6 +89,16 @@ def check_manifest():
         if not os.path.exists(os.path.join(ROOT, "games", slug + ".html")):
             err(f"manifest[{slug}]: games/{slug}.html OG page missing "
                 f"(run: python tools/make_og_pages.py)")
+    feed_path = os.path.join(ROOT, "feed.json")
+    if os.path.exists(feed_path):
+        with open(feed_path, encoding="utf-8") as f:
+            feed_ids = " ".join(i["id"] for i in json.load(f).get("items", []))
+        for g in games:
+            slug = g.get("slug", "?")
+            if slug + ".html" not in feed_ids:
+                err(f"feed.json is stale: '{slug}' missing "
+                    f"(run: python tools/make_feed.py)")
+
     print(f"manifest check done ({len(games)} games)")
     return [g["slug"] for g in games if g.get("slug")]
 
