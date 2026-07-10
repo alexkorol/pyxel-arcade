@@ -31,6 +31,7 @@
         playTags: document.getElementById('play-tags'),
         playCode: document.getElementById('play-code'),
         playFullscreen: document.getElementById('play-fullscreen'),
+        playShare: document.getElementById('play-share'),
     };
 
     // ---- data ------------------------------------------------------
@@ -113,6 +114,26 @@
         var frame = el.playFrame;
         if (frame.requestFullscreen) frame.requestFullscreen();
         else if (frame.webkitRequestFullscreen) frame.webkitRequestFullscreen();
+    });
+
+    // Share links point at the static OG page (games/<slug>.html) so the
+    // pasted URL unfurls with a preview image; it redirects humans back here.
+    el.playShare.addEventListener('click', function () {
+        var m = location.hash.match(/^#\/game\/([a-z0-9_]+)/);
+        if (!m) return;
+        var url = location.href.split('#')[0].replace(/index\.html$/, '') +
+            'games/' + m[1] + '.html';
+        var done = function () {
+            el.playShare.textContent = 'copied!';
+            setTimeout(function () { el.playShare.textContent = 'share'; }, 1500);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url).then(done, function () {
+                prompt('Copy this link:', url);
+            });
+        } else {
+            prompt('Copy this link:', url);
+        }
     });
 
     // ---- toolbar ---------------------------------------------------
@@ -216,7 +237,9 @@
 
         return '<article class="game-card">' +
             '<a class="card-thumb" href="' + playHref + '" aria-label="Play ' + escapeHtml(game.title) + '">' +
-            '<img src="demos/' + game.slug + '.png" alt="' + escapeHtml(game.title) + ' screenshot" loading="lazy">' +
+            '<img src="demos/' + game.slug + '.webp" ' +
+            'onerror="this.onerror=null;this.src=\'demos/' + game.slug + '.png\'" ' +
+            'alt="' + escapeHtml(game.title) + ' screenshot" loading="lazy">' +
             '</a>' +
             '<div class="card-body">' +
             '<h2 class="card-title"><a href="' + playHref + '">' + escapeHtml(game.title) + '</a></h2>' +
