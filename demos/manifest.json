@@ -3,6 +3,21 @@
   "repo": "https://github.com/alexkorol/pyxel-arcade",
   "games": [
     {
+      "slug": "vase_forge",
+      "title": "Vase Forge",
+      "description": "A pocket superformula lathe: shape lobes, twist, taper, ripples, height, and width in a spinning wireframe preview, then export the closed hollow mesh as a real printable STL.",
+      "controls": [
+        ["Up / Down", "Select parameter"],
+        ["Left / Right", "Adjust shape"],
+        ["Space / Q / E", "Spin / rotate"],
+        ["X", "Export STL"]
+      ],
+      "tags": ["toy", "3d", "generative", "design"],
+      "added": "2026-07-10",
+      "difficulty": "chill",
+      "touch": true
+    },
+    {
       "slug": "noita_demake",
       "title": "Noita Demake",
       "description": "A pocket wand-and-powder cave crawl: pixel liquids, fire, toxic sludge, gold, procedural biomes, enemies, spell slots, wand stats, flask pouring, Holy Mountain shops, and a final Sampo shard escape.",

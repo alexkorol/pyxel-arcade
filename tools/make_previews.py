@@ -28,6 +28,12 @@ MAX_SIDE = 480            # upscale small screens (nearest) up to this
 # Per-demo capture tweaks: scripted key taps to get past title screens and
 # into real gameplay, or a shorter warmup so a one-shot sim is caught growing.
 SCRIPT = {
+    "vase_forge": {
+        # Select twist and exaggerate it while the lathe continues spinning.
+        "press": [(16, "KEY_DOWN"), (28, "KEY_DOWN")] + [
+            (40 + i * 8, "KEY_RIGHT") for i in range(5)
+        ],
+    },
     "noita_demake": {"press": [(20, "KEY_RETURN")]},
     "undervault": {
         # enter the dungeon, then wander so the capture shows bump-combat

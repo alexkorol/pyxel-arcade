@@ -6,6 +6,20 @@
   "description": "Tiny games & toys in pure Python, playable in your browser.",
   "items": [
     {
+      "id": "https://alexkorol.github.io/pyxel-arcade/games/vase_forge.html",
+      "url": "https://alexkorol.github.io/pyxel-arcade/games/vase_forge.html",
+      "title": "Vase Forge",
+      "content_text": "A pocket superformula lathe: shape lobes, twist, taper, ripples, height, and width in a spinning wireframe preview, then export the closed hollow mesh as a real printable STL.",
+      "image": "https://alexkorol.github.io/pyxel-arcade/demos/vase_forge.png",
+      "date_published": "2026-07-10T00:00:00Z",
+      "tags": [
+        "toy",
+        "3d",
+        "generative",
+        "design"
+      ]
+    },
+    {
       "id": "https://alexkorol.github.io/pyxel-arcade/games/cymatic.html",
       "url": "https://alexkorol.github.io/pyxel-arcade/games/cymatic.html",
       "title": "Cymatic",
